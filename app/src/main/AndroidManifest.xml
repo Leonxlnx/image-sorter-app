@@ -11,9 +11,10 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- Needed only for legacy fallback (API <= 28). Q+ uses MediaStore RELATIVE_PATH. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
+        android:maxSdkVersion="28" />
 
     <application
         android:name=".ImageSorterApp"

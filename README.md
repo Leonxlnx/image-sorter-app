@@ -5,28 +5,35 @@ photos and decide what to do with each one in four directions:
 
 | Direction | Action |
 |-----------|--------|
-| ← Left    | **Delete** the photo (via the system MediaStore delete dialog on Android 11+) |
-| → Right   | **Keep** the photo (mark as reviewed, never shown again) |
-| ↑ Up      | Copy to your **Favorites** folder |
-| ↓ Down    | **Move** to a folder — opens a folder picker every time so you can decide where it goes |
+| ← Left    | **Delete** the photo. Deletes are queued and confirmed in batches (one Android system dialog per N photos instead of one per photo). |
+| → Right   | **Keep** the photo (mark as reviewed, never shown again). |
+| ↑ Up      | Copy to your **Favorites** folder (auto-created at `Pictures/PhotoSwipe/Favorites/`). |
+| ↓ Down    | **Move** to one of your folders — opens a quick folder picker. |
 
 Built with **Kotlin**, **Jetpack Compose**, and **Material 3**. Targets Android 8.0
 (API 26) through Android 14 (API 34).
 
 ## Features
 
-- 4-way swipe with smooth drag, color-coded direction overlays, and tactile haptic feedback.
-- Action buttons under every card for users who prefer tapping over swiping.
-- Single-level **Undo** snackbar after every swipe.
-- **Folder picker** for the down-swipe — pick from any folder you've previously registered.
-- **Folders tab** to add, rename, or remove destination folders via the Storage Access
-  Framework (`OpenDocumentTree`). Designate any folder as the Favorites destination or the
-  default move-down destination.
+- **Swipe-only** card stack — no tap buttons cluttering the UI. Smooth drag, fling, and a
+  color-coded direction overlay that grows as you drag.
+- **Batched delete confirmation**: the Android system delete dialog appears once per
+  configurable batch (default: every 10 swipes), not once per photo. A subtle banner at the
+  top of the swipe screen shows how many deletes are queued and lets you confirm immediately.
+- **Internal folder management** — create gallery folders directly from the app. Each
+  folder lives under `Pictures/PhotoSwipe/<name>/` and is visible in every gallery app.
+  No system folder picker required.
+- A **Favorites** folder is created automatically on first launch; you can rename it or
+  switch the favorite flag to any other folder.
+- Single-level **Undo** snackbar after every swipe (also pulls the source out of the
+  pending-delete queue).
+- **Folders tab** to add, rename, or remove destination folders. Mark one as Favorites
+  (used for up-swipe) or as the default down-swipe destination.
 - **Settings** for:
   - Date range filter (Any time / Today / Last 7 days / Last 30 days / Last year).
   - Include videos.
   - Skip already-reviewed photos.
-  - Batch size for the delete confirmation flow.
+  - Delete batch size (1–50).
   - Haptic feedback toggle.
   - On-card direction hints toggle.
   - System / Light / Dark theme.
@@ -35,18 +42,25 @@ Built with **Kotlin**, **Jetpack Compose**, and **Material 3**. Targets Android 
 
 ## Screens
 
-1. **Swipe** — the main card stack. The top card is draggable in any of four directions and
-   flings off-screen on release. The next two cards peek through underneath for depth.
-2. **Folders** — manage your Storage Access Framework destination folders.
+1. **Swipe** — the main card stack. The top card is draggable in any of four directions
+   and flings off-screen on release. The next two cards peek through underneath for depth.
+2. **Folders** — list your destination folders. The floating **Add folder** button opens a
+   simple name dialog; the folder is created in `Pictures/PhotoSwipe/<name>/` the first
+   time you swipe a photo into it.
 3. **Settings** — every knob the app exposes.
 
 ## How destinations work
 
-The app never tries to move files into arbitrary system folders. Instead, you grant it
-persistable URI permission on the destinations you care about (typically `DCIM/Favorites`
-and `DCIM/ToSort`). PhotoSwipe Sorter copies the source bytes into the destination via the
-Storage Access Framework, then asks the system to delete the original (when you swipe down
-to move).
+Destinations are app-managed. You create them by name in the Folders tab; PhotoSwipe Sorter
+writes into `Pictures/PhotoSwipe/<name>/` using **MediaStore inserts** on Android 10+ (no
+storage permissions or document tree pickers needed). On Android 9 and below it falls back
+to direct `File` writes plus `MediaScannerConnection` so the gallery indexes the new file.
+
+Deletes are deferred: every left-swipe enqueues the source URI. When the queue reaches the
+configured batch size — or when you tap **Delete now** on the banner — the app builds a
+single `MediaStore.createDeleteRequest` for the whole batch, so Android shows one
+confirmation dialog instead of one per photo. The dialog still asks for explicit user
+consent (required on Android 11+); only the *frequency* is reduced.
 
 ## Permissions requested
 
@@ -54,9 +68,8 @@ to move).
 |------------|-----|
 | `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` | Read your gallery on Android 13+. |
 | `READ_MEDIA_VISUAL_USER_SELECTED` | Support partial photo access on Android 14+. |
-| `READ_EXTERNAL_STORAGE` | Legacy access on Android 12 and below. |
-| `WRITE_EXTERNAL_STORAGE` | Legacy write on Android 10 and below. |
-| SAF persistable URIs (granted at runtime, per folder you pick) | Write photos into destination folders. |
+| `READ_EXTERNAL_STORAGE` | Legacy read on Android 12 and below. |
+| `WRITE_EXTERNAL_STORAGE` | Legacy write fallback on Android 9 and below (`maxSdkVersion=28`). |
 
 ## Building
 

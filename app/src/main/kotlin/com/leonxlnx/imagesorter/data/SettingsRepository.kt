@@ -89,6 +89,6 @@ class SettingsRepository(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_BATCH_SIZE = 5
+        const val DEFAULT_BATCH_SIZE = 10
     }
 }

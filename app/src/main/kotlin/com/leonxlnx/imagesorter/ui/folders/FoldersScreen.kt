@@ -2,13 +2,10 @@
 
 package com.leonxlnx.imagesorter.ui.folders
 
-import android.content.Intent
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,14 +17,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,14 +35,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,149 +50,196 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.documentfile.provider.DocumentFile
 import com.leonxlnx.imagesorter.ImageSorterApp
 import com.leonxlnx.imagesorter.R
+import com.leonxlnx.imagesorter.data.FolderRepository
 import com.leonxlnx.imagesorter.data.SortFolder
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @Composable
 fun FoldersScreen() {
     val context = LocalContext.current
-    val app = context.applicationContext as ImageSorterApp
-    val repo = app.folderRepository
+    val app = remember(context) { context.applicationContext as ImageSorterApp }
+    val repo: FolderRepository = remember(app) { app.folderRepository }
     val scope = rememberCoroutineScope()
-    val foldersState = repo.folders.collectAsState(initial = emptyList())
-    var renameTarget by remember { mutableStateOf<SortFolder?>(null) }
 
-    val pickFolder = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            val name = DocumentFile.fromTreeUri(context, uri)?.name
-                ?: uri.lastPathSegment
-                ?: "Folder"
-            scope.launch { repo.addFolder(uri, name) }
-        }
+    var folders by remember { mutableStateOf(listOf<SortFolder>()) }
+    var addDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<SortFolder?>(null) }
+    var deleteTarget by remember { mutableStateOf<SortFolder?>(null) }
+
+    LaunchedEffect(repo) {
+        repo.folders.collectLatest { folders = it }
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = {
-                Text(stringResource(R.string.folders_title), fontWeight = FontWeight.SemiBold)
-            })
-        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { pickFolder.launch(null) },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                onClick = { addDialogVisible = true },
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.add_folder)) },
             )
-        }
+        },
     ) { inner ->
-        val folders = foldersState.value
-        if (folders.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(inner)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    Icons.Outlined.Folder,
-                    contentDescription = null,
-                    modifier = Modifier.padding(16.dp),
-                )
-                Text(stringResource(R.string.no_folders_yet), style = MaterialTheme.typography.bodyLarge)
-            }
-        } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner),
+        ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(inner),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(folders, key = { it.uri.toString() }) { folder ->
-                    FolderRow(
+                item {
+                    Header()
+                }
+                items(folders, key = { it.name }) { folder ->
+                    FolderCard(
                         folder = folder,
-                        onRemove = { scope.launch { repo.remove(folder.uri) } },
-                        onSetFavorite = { scope.launch { repo.setFavorite(folder.uri) } },
-                        onSetDefaultDown = { scope.launch { repo.setDefaultDown(folder.uri) } },
+                        onMarkFavorite = { scope.launch { repo.setFavorite(folder.name) } },
+                        onMarkDefault = { scope.launch { repo.setDefaultDown(folder.name) } },
                         onRename = { renameTarget = folder },
+                        onDelete = { deleteTarget = folder },
                     )
+                }
+                if (folders.isEmpty()) {
+                    item {
+                        EmptyFolders()
+                    }
                 }
             }
         }
     }
 
-    renameTarget?.let { folder ->
-        RenameDialog(
-            initial = folder.displayName,
+    if (addDialogVisible) {
+        NameDialog(
+            title = stringResource(R.string.add_folder_title),
+            confirmText = stringResource(R.string.create),
+            onDismiss = { addDialogVisible = false },
+            onConfirm = { name ->
+                addDialogVisible = false
+                scope.launch { repo.addFolder(name) }
+            },
+        )
+    }
+
+    renameTarget?.let { target ->
+        NameDialog(
+            title = stringResource(R.string.rename_folder_title, target.name),
+            confirmText = stringResource(R.string.rename),
+            initial = target.name,
             onDismiss = { renameTarget = null },
-            onConfirm = { newName ->
-                scope.launch { repo.rename(folder.uri, newName) }
+            onConfirm = { name ->
                 renameTarget = null
+                scope.launch { repo.rename(target.name, name) }
+            },
+        )
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(stringResource(R.string.remove_folder_title)) },
+            text = { Text(stringResource(R.string.remove_folder_subtitle, target.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = target.name
+                    deleteTarget = null
+                    scope.launch { repo.remove(name) }
+                }) { Text(stringResource(R.string.remove)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
         )
     }
 }
 
 @Composable
-private fun FolderRow(
+private fun Header() {
+    Column {
+        Text(
+            stringResource(R.string.folders_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.folders_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun FolderCard(
     folder: SortFolder,
-    onRemove: () -> Unit,
-    onSetFavorite: () -> Unit,
-    onSetDefaultDown: () -> Unit,
+    onMarkFavorite: () -> Unit,
+    onMarkDefault: () -> Unit,
     onRename: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Folder, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(folder.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        folder.uri.lastPathSegment ?: folder.uri.toString(),
+                        folder.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        folder.relativePath,
                         style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onRename) { Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.folder_rename)) }
-                IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.folder_remove)) }
+                IconButton(onClick = onRename) {
+                    Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.rename))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.remove))
+                }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
-                    onClick = onSetFavorite,
-                    label = { Text(stringResource(R.string.folder_set_favorite)) },
-                    leadingIcon = { Icon(Icons.Outlined.Star, contentDescription = null) },
-                    enabled = !folder.isFavorite,
+                    onClick = onMarkFavorite,
+                    label = { Text(stringResource(R.string.use_as_favorites)) },
+                    leadingIcon = { Icon(Icons.Outlined.Favorite, contentDescription = null) },
+                    colors = if (folder.isFavorite)
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
-                    onClick = onSetDefaultDown,
-                    label = { Text(stringResource(R.string.folder_set_default)) },
-                    leadingIcon = { Icon(Icons.Outlined.ArrowDownward, contentDescription = null) },
-                    enabled = !folder.isDefaultDown,
-                )
-            }
-            if (folder.isFavorite || folder.isDefaultDown) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = buildString {
-                        if (folder.isFavorite) append("★ Favorites destination")
-                        if (folder.isFavorite && folder.isDefaultDown) append(" · ")
-                        if (folder.isDefaultDown) append("↓ Default move-down")
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    onClick = onMarkDefault,
+                    label = { Text(stringResource(R.string.use_as_default_down)) },
+                    leadingIcon = { Icon(Icons.Outlined.ArrowDropDown, contentDescription = null) },
+                    colors = if (folder.isDefaultDown)
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    else AssistChipDefaults.assistChipColors(),
                 )
             }
         }
@@ -203,25 +247,70 @@ private fun FolderRow(
 }
 
 @Composable
-private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
+private fun EmptyFolders() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                Icons.Outlined.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(R.string.no_folders_yet), fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.no_folders_yet_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NameDialog(
+    title: String,
+    confirmText: String,
+    initial: String = "",
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by rememberSaveable { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.folder_rename)) },
+        title = { Text(title, fontWeight = FontWeight.SemiBold) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-            )
+            Column {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.take(60) },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.folder_name_label)) },
+                    placeholder = { Text(stringResource(R.string.folder_name_placeholder)) },
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.folder_path_preview, "Pictures/PhotoSwipe/${value.ifBlank { "<name>" }}"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text.ifBlank { initial }) }) {
-                Text(stringResource(R.string.ok))
+            TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value.trim()) }) {
+                Text(confirmText)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
+        },
     )
 }

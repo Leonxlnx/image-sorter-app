@@ -1,13 +1,11 @@
 package com.leonxlnx.imagesorter.ui.swipe
 
 import android.app.Application
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.leonxlnx.imagesorter.ImageSorterApp
-import com.leonxlnx.imagesorter.data.DateRange
 import com.leonxlnx.imagesorter.data.FolderRepository
 import com.leonxlnx.imagesorter.data.Photo
 import com.leonxlnx.imagesorter.data.PhotoRepository
@@ -35,6 +33,8 @@ data class SwipeUiState(
     val showHints: Boolean = true,
     val undo: UndoToken? = null,
     val folders: List<SortFolder> = emptyList(),
+    val pendingDeleteCount: Int = 0,
+    val batchSize: Int = 10,
 ) {
     val isEmpty: Boolean get() = queue.isEmpty() || cursor >= queue.size
     val currentPhoto: Photo? get() = queue.getOrNull(cursor)
@@ -43,11 +43,11 @@ data class SwipeUiState(
     val totalProcessed: Int get() = cursor.coerceAtMost(queue.size)
 }
 
-/** Event consumed by [SwipeScreen]. Each emission is one-shot. */
 sealed interface SwipeEvent {
     data class LaunchIntent(val intentSender: android.content.IntentSender) : SwipeEvent
     data class ChooseFolderForDown(val photoId: Long) : SwipeEvent
     data class Error(val message: String) : SwipeEvent
+    data class Info(val message: String) : SwipeEvent
 }
 
 class SwipeViewModel(
@@ -65,7 +65,6 @@ class SwipeViewModel(
     private val _events = Channel<SwipeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    /** Tracks the last sort action so we can offer a single-level Undo. */
     private var lastSwipe: PendingUndo? = null
 
     init {
@@ -74,6 +73,9 @@ class SwipeViewModel(
         }
         viewModelScope.launch {
             settingsRepo.showHints.collect { _state.value = _state.value.copy(showHints = it) }
+        }
+        viewModelScope.launch {
+            settingsRepo.batchSize.collect { _state.value = _state.value.copy(batchSize = it) }
         }
         viewModelScope.launch { reload() }
     }
@@ -90,12 +92,10 @@ class SwipeViewModel(
                 includeVideos = includeVideos,
                 excludeIds = reviewed,
             )
-            _state.value = SwipeUiState(
+            _state.value = _state.value.copy(
                 isLoading = false,
                 queue = photos,
                 cursor = 0,
-                showHints = _state.value.showHints,
-                folders = _state.value.folders,
             )
         }
     }
@@ -104,53 +104,85 @@ class SwipeViewModel(
         val photo = _state.value.currentPhoto ?: return
         when (direction) {
             SwipeDirection.Right -> execute(photo, SortAction.Keep(photo.id))
-            SwipeDirection.Left -> execute(photo, SortAction.Delete(photo.id, photo.uri))
+            SwipeDirection.Left -> execute(photo, SortAction.EnqueueDelete(photo.id, photo.uri))
             SwipeDirection.Up -> {
                 val favFolder = _state.value.folders.firstOrNull { it.isFavorite }
                 if (favFolder == null) {
                     viewModelScope.launch {
-                        _events.send(SwipeEvent.Error("Pick a Favorites folder in the Folders tab first."))
+                        _events.send(SwipeEvent.Error("Mark a folder as Favorites in the Folders tab first."))
                     }
                     return
                 }
                 execute(
                     photo,
-                    SortAction.CopyTo(photo.id, photo.uri, favFolder.uri, photo.displayName, photo.mimeType),
+                    SortAction.CopyTo(
+                        photoId = photo.id,
+                        srcUri = photo.uri,
+                        folder = favFolder,
+                        displayName = photo.displayName,
+                        mimeType = photo.mimeType,
+                        isVideo = photo.isVideo,
+                    ),
                 )
             }
             SwipeDirection.Down -> {
-                val defaultDown = _state.value.folders.firstOrNull { it.isDefaultDown }
-                if (defaultDown != null && _state.value.folders.size == 1) {
-                    execute(
-                        photo,
-                        SortAction.MoveTo(photo.id, photo.uri, defaultDown.uri, photo.displayName, photo.mimeType),
-                    )
+                val default = _state.value.folders.firstOrNull { it.isDefaultDown }
+                val nonFavorites = _state.value.folders.filter { !it.isFavorite }
+                if (default != null && nonFavorites.size <= 1) {
+                    moveToFolder(photo, default)
                 } else {
-                    viewModelScope.launch {
-                        _events.send(SwipeEvent.ChooseFolderForDown(photo.id))
-                    }
+                    viewModelScope.launch { _events.send(SwipeEvent.ChooseFolderForDown(photo.id)) }
                 }
             }
         }
     }
 
-    fun onFolderChosenForDown(folderUri: Uri) {
-        val photo = _state.value.currentPhoto ?: return
+    fun moveToFolder(photo: Photo, folder: SortFolder) {
         execute(
             photo,
-            SortAction.MoveTo(photo.id, photo.uri, folderUri, photo.displayName, photo.mimeType),
+            SortAction.MoveTo(
+                photoId = photo.id,
+                srcUri = photo.uri,
+                folder = folder,
+                displayName = photo.displayName,
+                mimeType = photo.mimeType,
+                isVideo = photo.isVideo,
+            ),
         )
     }
 
-    fun advanceAfterDownDismissed() {
-        // User opened the folder picker via a down-swipe but cancelled it. Reset undo state
-        // so the previous photo can still be brought back, then bring this photo back on top.
+    fun moveCurrentTo(folder: SortFolder) {
+        val photo = _state.value.currentPhoto ?: return
+        moveToFolder(photo, folder)
+    }
+
+    fun cancelDownPick() {
         _state.value = _state.value.copy(undo = null)
+    }
+
+    /** Manually triggers the batch delete dialog for whatever is queued. */
+    fun flushPendingDeletes() {
+        viewModelScope.launch {
+            when (val result = sortActions.flushPendingDeletes()) {
+                null -> _events.send(SwipeEvent.Info("Nothing to delete"))
+                is SortResult.NeedsConfirmation -> {
+                    _events.send(SwipeEvent.LaunchIntent(result.intentSender))
+                    _state.value = _state.value.copy(pendingDeleteCount = 0)
+                }
+                is SortResult.Done -> {
+                    _events.send(SwipeEvent.Info(result.undo.description))
+                    _state.value = _state.value.copy(pendingDeleteCount = 0)
+                }
+                is SortResult.Failed -> _events.send(SwipeEvent.Error(result.message))
+                is SortResult.CopiedPendingDelete -> Unit
+            }
+        }
     }
 
     private fun execute(photo: Photo, action: SortAction) {
         viewModelScope.launch {
-            when (val result = sortActions.execute(action)) {
+            val result = sortActions.execute(action)
+            when (result) {
                 is SortResult.Done -> {
                     lastSwipe = PendingUndo(photo, action)
                     _state.value = _state.value.copy(
@@ -158,14 +190,21 @@ class SwipeViewModel(
                         undo = result.undo,
                     )
                 }
-                is SortResult.NeedsConfirmation -> {
+                is SortResult.CopiedPendingDelete -> {
                     lastSwipe = PendingUndo(photo, action)
-                    _state.value = _state.value.copy(cursor = _state.value.cursor + 1)
+                    val newCount = sortActions.pendingCount
+                    _state.value = _state.value.copy(
+                        cursor = _state.value.cursor + 1,
+                        undo = result.undo,
+                        pendingDeleteCount = newCount,
+                    )
+                    // Auto-flush whenever we hit the batch threshold.
+                    if (newCount >= _state.value.batchSize) flushPendingDeletes()
+                }
+                is SortResult.NeedsConfirmation -> {
                     _events.send(SwipeEvent.LaunchIntent(result.intentSender))
                 }
-                is SortResult.Failed -> {
-                    _events.send(SwipeEvent.Error(result.message))
-                }
+                is SortResult.Failed -> _events.send(SwipeEvent.Error(result.message))
             }
         }
     }
@@ -175,11 +214,10 @@ class SwipeViewModel(
         lastSwipe = null
         viewModelScope.launch {
             reviewedRepo.unmark(pending.photo.id)
-            // Bring the photo back at the current cursor.
+            sortActions.removePendingDelete(pending.photo.id)
             val newQueue = _state.value.queue.toMutableList()
             val insertAt = (_state.value.cursor - 1).coerceAtLeast(0)
             if (insertAt < newQueue.size) {
-                // Replace duplicates if any
                 newQueue.add(insertAt, pending.photo)
             } else {
                 newQueue.add(pending.photo)
@@ -188,6 +226,7 @@ class SwipeViewModel(
                 queue = newQueue,
                 cursor = insertAt,
                 undo = null,
+                pendingDeleteCount = sortActions.pendingCount,
             )
         }
     }
