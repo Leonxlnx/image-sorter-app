@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhotoSwipe Sorter</string>
+
+    <!-- Onboarding / permissions -->
+    <string name="welcome_title">Sort your photos</string>
+    <string name="welcome_subtitle">Swipe through your gallery and clean it up in seconds.</string>
+    <string name="grant_access">Grant photo access</string>
+    <string name="permission_required">Photo access is required to start sorting.</string>
+    <string name="open_settings">Open system settings</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_swipe">Swipe</string>
+    <string name="nav_folders">Folders</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Swipe screen -->
+    <string name="swipe_left_hint">Delete</string>
+    <string name="swipe_right_hint">Keep</string>
+    <string name="swipe_up_hint">Favorite</string>
+    <string name="swipe_down_hint">Sort to…</string>
+    <string name="empty_state_title">Nothing to sort 🎉</string>
+    <string name="empty_state_subtitle">No more photos match the current filter.</string>
+    <string name="undo">Undo</string>
+    <string name="undo_done">Restored</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="action_move">Move</string>
+    <string name="pick_folder_title">Move to which folder?</string>
+    <string name="pick_folder_subtitle">Pick a destination. You can add new folders from the Folders tab.</string>
+    <string name="no_folders_yet">No folders yet. Add one from the Folders tab.</string>
+    <string name="reload">Reload</string>
+
+    <!-- Folders -->
+    <string name="folders_title">Folders</string>
+    <string name="add_folder">Add folder</string>
+    <string name="favorites_folder">Favorites destination</string>
+    <string name="default_move_folder">Default move-down destination</string>
+    <string name="folder_not_set">Not set – tap to pick</string>
+    <string name="folder_remove">Remove</string>
+    <string name="folder_rename">Rename</string>
+    <string name="folder_set_favorite">Use as Favorites</string>
+    <string name="folder_set_default">Use as default down</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_filter_header">Filter</string>
+    <string name="settings_date_range">Date range</string>
+    <string name="settings_date_any">Any time</string>
+    <string name="settings_date_today">Today</string>
+    <string name="settings_date_week">Last 7 days</string>
+    <string name="settings_date_month">Last 30 days</string>
+    <string name="settings_date_year">Last year</string>
+    <string name="settings_date_custom">Custom range</string>
+    <string name="settings_include_videos">Include videos</string>
+    <string name="settings_skip_reviewed">Skip already-reviewed photos</string>
+
+    <string name="settings_behavior_header">Behavior</string>
+    <string name="settings_batch_size">Batch size before confirming delete</string>
+    <string name="settings_haptics">Haptic feedback</string>
+    <string name="settings_show_hints">Show direction hints</string>
+
+    <string name="settings_appearance_header">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
+    <string name="settings_data_header">Data</string>
+    <string name="settings_reset_reviewed">Reset reviewed list</string>
+    <string name="settings_reset_done">Reviewed list cleared</string>
+
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="confirm">Confirm</string>
+</resources>
