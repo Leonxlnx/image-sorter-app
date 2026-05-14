@@ -6,6 +6,11 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -20,21 +25,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +60,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -96,7 +93,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
 
     val intentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
-    ) { /* The result of MediaStore delete is observed implicitly via the next reload. */ }
+    ) { /* Delete batches resolve via the next reload. */ }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { ev ->
@@ -105,6 +102,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
                     intentLauncher.launch(IntentSenderRequest.Builder(ev.intentSender).build())
                 is SwipeEvent.ChooseFolderForDown -> pickerVisible = true
                 is SwipeEvent.Error -> snackbar.showSnackbar(ev.message)
+                is SwipeEvent.Info -> snackbar.showSnackbar(ev.message)
             }
         }
     }
@@ -123,13 +121,18 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
     Box(modifier = Modifier.fillMaxSize()) {
         when {
             state.isLoading -> LoadingState()
-            state.isEmpty -> EmptyState(onReload = { viewModel.reload() })
+            state.isEmpty -> EmptyState(
+                pendingDeletes = state.pendingDeleteCount,
+                onFlush = { viewModel.flushPendingDeletes() },
+                onReload = { viewModel.reload() },
+            )
             else -> CardStack(
                 state = state,
                 onSwiped = { direction ->
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.onSwipe(direction)
                 },
+                onFlushQueue = { viewModel.flushPendingDeletes() },
             )
         }
         SnackbarHost(
@@ -142,14 +145,14 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
 
     if (pickerVisible) {
         FolderPickerSheet(
-            folders = state.folders,
+            folders = state.folders.filter { !it.isFavorite },
             onDismiss = {
                 pickerVisible = false
-                viewModel.advanceAfterDownDismissed()
+                viewModel.cancelDownPick()
             },
             onSelected = { folder ->
                 pickerVisible = false
-                viewModel.onFolderChosenForDown(folder.uri)
+                viewModel.moveCurrentTo(folder)
             },
         )
     }
@@ -163,7 +166,7 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun EmptyState(onReload: () -> Unit) {
+private fun EmptyState(pendingDeletes: Int, onFlush: () -> Unit, onReload: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -171,6 +174,13 @@ private fun EmptyState(onReload: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Icon(
+            Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(16.dp))
         Text(
             stringResource(R.string.empty_state_title),
             style = MaterialTheme.typography.headlineMedium,
@@ -182,6 +192,14 @@ private fun EmptyState(onReload: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(24.dp))
+        if (pendingDeletes > 0) {
+            OutlinedButton(onClick = onFlush) {
+                Icon(Icons.Outlined.Delete, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.flush_pending, pendingDeletes))
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         TextButton(onClick = onReload) {
             Icon(Icons.Outlined.Refresh, contentDescription = null)
             Spacer(Modifier.width(8.dp))
@@ -194,17 +212,18 @@ private fun EmptyState(onReload: () -> Unit) {
 private fun CardStack(
     state: SwipeUiState,
     onSwiped: (SwipeDirection) -> Unit,
+    onFlushQueue: () -> Unit,
 ) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val current = state.currentPhoto ?: return
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ProgressHeader(state)
+        TopBar(state = state, onFlushQueue = onFlushQueue)
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .onSizeChanged { size = it },
         ) {
             state.nextNextPhoto?.let {
@@ -212,8 +231,8 @@ private fun CardStack(
                     photo = it,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 24.dp, start = 24.dp, end = 24.dp, bottom = 8.dp)
-                        .graphicsLayer { alpha = 0.4f },
+                        .padding(top = 28.dp, start = 28.dp, end = 28.dp, bottom = 4.dp)
+                        .graphicsLayer { alpha = 0.35f },
                 )
             }
             state.nextPhoto?.let {
@@ -221,43 +240,91 @@ private fun CardStack(
                     photo = it,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 12.dp, start = 12.dp, end = 12.dp, bottom = 12.dp)
-                        .graphicsLayer { alpha = 0.7f },
+                        .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
+                        .graphicsLayer { alpha = 0.75f },
                 )
             }
             DraggableTopCard(
                 photo = current,
                 size = size,
-                showHints = state.showHints,
                 onSwiped = onSwiped,
             )
         }
-        ActionRow(onAction = onSwiped)
+        FooterHints(state.showHints)
     }
 }
 
 @Composable
-private fun ProgressHeader(state: SwipeUiState) {
-    Row(
+private fun TopBar(state: SwipeUiState, onFlushQueue: () -> Unit) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
-        Text(
-            text = "${state.totalProcessed}/${state.queue.size}",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.width(12.dp))
-        LinearProgressIndicator(
-            progress = {
-                if (state.queue.isEmpty()) 0f else state.totalProcessed.toFloat() / state.queue.size
-            },
-            modifier = Modifier
-                .weight(1f)
-                .height(6.dp),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${state.totalProcessed}/${state.queue.size}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(12.dp))
+            LinearProgressIndicator(
+                progress = {
+                    if (state.queue.isEmpty()) 0f else state.totalProcessed.toFloat() / state.queue.size
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+            )
+        }
+        AnimatedVisibility(
+            visible = state.pendingDeleteCount > 0,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                tonalElevation = 1.dp,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.pending_delete_status,
+                            state.pendingDeleteCount,
+                            state.batchSize,
+                        ),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    TextButton(onClick = onFlushQueue) {
+                        Text(
+                            stringResource(R.string.delete_now),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -265,7 +332,6 @@ private fun ProgressHeader(state: SwipeUiState) {
 private fun DraggableTopCard(
     photo: Photo,
     size: IntSize,
-    showHints: Boolean,
     onSwiped: (SwipeDirection) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -283,7 +349,7 @@ private fun DraggableTopCard(
             .graphicsLayer {
                 translationX = offsetX.value
                 translationY = offsetY.value
-                rotationZ = (offsetX.value / width.toFloat()) * 14f
+                rotationZ = (offsetX.value / width.toFloat()) * 12f
             }
             .pointerInput(photo.id) {
                 detectDragGestures(
@@ -298,8 +364,8 @@ private fun DraggableTopCard(
                             else -> if (dy > 0) SwipeDirection.Down else SwipeDirection.Up
                         }
                         if (direction == null) {
-                            scope.launch { offsetX.animateTo(0f, tween(180)) }
-                            scope.launch { offsetY.animateTo(0f, tween(180)) }
+                            scope.launch { offsetX.animateTo(0f, tween(200)) }
+                            scope.launch { offsetY.animateTo(0f, tween(200)) }
                         } else {
                             val targetX = when (direction) {
                                 SwipeDirection.Right -> width * 1.5f
@@ -311,16 +377,16 @@ private fun DraggableTopCard(
                                 SwipeDirection.Down -> height * 1.5f
                                 SwipeDirection.Left, SwipeDirection.Right -> 0f
                             }
-                            scope.launch { offsetX.animateTo(targetX, tween(220)) }
+                            scope.launch { offsetX.animateTo(targetX, tween(240)) }
                             scope.launch {
-                                offsetY.animateTo(targetY, tween(220))
+                                offsetY.animateTo(targetY, tween(240))
                                 onSwiped(direction)
                             }
                         }
                     },
                     onDragCancel = {
-                        scope.launch { offsetX.animateTo(0f, tween(180)) }
-                        scope.launch { offsetY.animateTo(0f, tween(180)) }
+                        scope.launch { offsetX.animateTo(0f, tween(200)) }
+                        scope.launch { offsetY.animateTo(0f, tween(200)) }
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
@@ -335,9 +401,6 @@ private fun DraggableTopCard(
             offset = Offset(offsetX.value, offsetY.value),
             threshold = thresholdPx,
         )
-        if (showHints) {
-            HintCorners()
-        }
     }
 }
 
@@ -346,8 +409,8 @@ private fun PhotoCard(photo: Photo, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     Surface(
         modifier = modifier
-            .shadow(16.dp, RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp)),
+            .shadow(18.dp, RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(28.dp)),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -360,25 +423,27 @@ private fun PhotoCard(photo: Photo, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            // Subtle gradient + metadata at the bottom for clean readability.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
             ) {
                 Column {
                     Text(
                         text = photo.displayName,
                         color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
+                        fontWeight = FontWeight.Medium,
                     )
                     val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
                         .format(java.util.Date(photo.dateTakenMillis))
-                    val size = Formatter.formatShortFileSize(context, photo.sizeBytes)
+                    val sizeLabel = Formatter.formatShortFileSize(context, photo.sizeBytes)
                     Text(
-                        text = "$date · $size",
+                        text = "$date · $sizeLabel",
                         color = Color.White.copy(alpha = 0.85f),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -393,17 +458,17 @@ private fun BoxScope.DirectionOverlay(offset: Offset, threshold: Float) {
     val absDx = abs(offset.x)
     val absDy = abs(offset.y)
     val (color, label) = when {
-        absDx < 32f && absDy < 32f -> return
+        absDx < 48f && absDy < 48f -> return
         absDx >= absDy && offset.x > 0 -> Color(0xFF22C55E) to stringResource(R.string.swipe_right_hint)
         absDx >= absDy && offset.x < 0 -> Color(0xFFEF4444) to stringResource(R.string.swipe_left_hint)
         absDy > absDx && offset.y < 0 -> Color(0xFFEAB308) to stringResource(R.string.swipe_up_hint)
         else -> Color(0xFF3B82F6) to stringResource(R.string.swipe_down_hint)
     }
-    val intensity = ((maxOf(absDx, absDy) - 32f) / (threshold + 200f)).coerceIn(0f, 0.55f)
+    val intensity = ((maxOf(absDx, absDy) - 48f) / (threshold + 240f)).coerceIn(0f, 0.55f)
     Box(
         modifier = Modifier
             .matchParentSize()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(color.copy(alpha = intensity)),
         contentAlignment = Alignment.Center,
     ) {
@@ -419,68 +484,41 @@ private fun BoxScope.DirectionOverlay(offset: Offset, threshold: Float) {
 }
 
 @Composable
-private fun BoxScope.HintCorners() {
-    Box(modifier = Modifier.matchParentSize().padding(20.dp)) {
-        HintChip(text = stringResource(R.string.swipe_left_hint), color = Color(0xFFEF4444), align = Alignment.CenterStart)
-        HintChip(text = stringResource(R.string.swipe_right_hint), color = Color(0xFF22C55E), align = Alignment.CenterEnd)
-        HintChip(text = stringResource(R.string.swipe_up_hint), color = Color(0xFFEAB308), align = Alignment.TopCenter)
-        HintChip(text = stringResource(R.string.swipe_down_hint), color = Color(0xFF3B82F6), align = Alignment.BottomCenter)
+private fun FooterHints(visible: Boolean) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HintLabel(stringResource(R.string.swipe_left_hint), Color(0xFFEF4444))
+            HintLabel(stringResource(R.string.swipe_up_hint), Color(0xFFEAB308))
+            HintLabel(stringResource(R.string.swipe_down_hint), Color(0xFF3B82F6))
+            HintLabel(stringResource(R.string.swipe_right_hint), Color(0xFF22C55E))
+        }
     }
 }
 
 @Composable
-private fun BoxScope.HintChip(text: String, color: Color, align: Alignment) {
+private fun HintLabel(text: String, color: Color) {
     Surface(
-        modifier = Modifier
-            .align(align)
-            .wrapContentHeight()
-            .padding(4.dp),
-        color = color.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(20.dp),
+        color = color.copy(alpha = 0.16f),
+        contentColor = color,
+        shape = RoundedCornerShape(999.dp),
     ) {
         Text(
             text = text,
-            color = Color.White,
-            style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
 @Composable
-private fun ActionRow(onAction: (SwipeDirection) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircleAction(color = Color(0xFFEF4444), icon = Icons.Filled.Close) { onAction(SwipeDirection.Left) }
-        CircleAction(color = Color(0xFFEAB308), icon = Icons.Filled.ArrowUpward) { onAction(SwipeDirection.Up) }
-        CircleAction(color = Color(0xFF3B82F6), icon = Icons.Filled.ArrowDownward) { onAction(SwipeDirection.Down) }
-        CircleAction(color = Color(0xFF22C55E), icon = Icons.Filled.Check) { onAction(SwipeDirection.Right) }
-    }
-}
-
-@Composable
-private fun CircleAction(color: Color, icon: ImageVector, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(CircleShape)
-            .shadow(8.dp, CircleShape),
-        color = color,
-    ) {
-        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
-            Icon(icon, contentDescription = null, tint = Color.White)
-        }
-    }
-}
-
-@Composable
-fun FolderPickerSheet(
+private fun FolderPickerSheet(
     folders: List<SortFolder>,
     onDismiss: () -> Unit,
     onSelected: (SortFolder) -> Unit,
@@ -496,6 +534,7 @@ fun FolderPickerSheet(
             Text(
                 stringResource(R.string.pick_folder_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(16.dp))
             if (folders.isEmpty()) {
@@ -505,28 +544,33 @@ fun FolderPickerSheet(
                 )
             } else {
                 folders.forEach { folder ->
-                    ListItem(
-                        headlineContent = { Text(folder.displayName) },
-                        supportingContent = {
-                            Text(
-                                buildString {
-                                    if (folder.isFavorite) append("Favorites · ")
-                                    if (folder.isDefaultDown) append("Default down · ")
-                                    append(folder.uri.lastPathSegment ?: "")
-                                },
-                                maxLines = 1,
-                            )
-                        },
-                        leadingContent = {
-                            Icon(Icons.Outlined.Folder, contentDescription = null)
-                        },
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .padding(vertical = 2.dp),
-                    )
-                    TextButton(onClick = { onSelected(folder) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Move here")
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        ListItem(
+                            headlineContent = {
+                                Text(folder.name, fontWeight = FontWeight.SemiBold)
+                            },
+                            supportingContent = {
+                                Text(
+                                    folder.relativePath,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(Icons.Outlined.Folder, contentDescription = null)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextButton(
+                            onClick = { onSelected(folder) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.move_here)) }
                     }
                 }
             }
