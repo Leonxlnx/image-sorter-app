@@ -11,6 +11,7 @@ import com.leonxlnx.imagesorter.data.Photo
 import com.leonxlnx.imagesorter.data.PhotoRepository
 import com.leonxlnx.imagesorter.data.ReviewedRepository
 import com.leonxlnx.imagesorter.data.SettingsRepository
+import com.leonxlnx.imagesorter.data.FolderRoot
 import com.leonxlnx.imagesorter.data.SortAction
 import com.leonxlnx.imagesorter.data.SortActions
 import com.leonxlnx.imagesorter.data.SortFolder
@@ -31,10 +32,14 @@ data class SwipeUiState(
     val queue: List<Photo> = emptyList(),
     val cursor: Int = 0,
     val showHints: Boolean = true,
+    val showMetadata: Boolean = true,
     val undo: UndoToken? = null,
     val folders: List<SortFolder> = emptyList(),
     val pendingDeleteCount: Int = 0,
     val batchSize: Int = 10,
+    val dragThresholdDp: Int = 96,
+    val stackDepth: Int = 2,
+    val folderRoot: FolderRoot = FolderRoot.Pictures,
 ) {
     val isEmpty: Boolean get() = queue.isEmpty() || cursor >= queue.size
     val currentPhoto: Photo? get() = queue.getOrNull(cursor)
@@ -75,7 +80,19 @@ class SwipeViewModel(
             settingsRepo.showHints.collect { _state.value = _state.value.copy(showHints = it) }
         }
         viewModelScope.launch {
+            settingsRepo.showMetadata.collect { _state.value = _state.value.copy(showMetadata = it) }
+        }
+        viewModelScope.launch {
             settingsRepo.batchSize.collect { _state.value = _state.value.copy(batchSize = it) }
+        }
+        viewModelScope.launch {
+            settingsRepo.dragThresholdDp.collect { _state.value = _state.value.copy(dragThresholdDp = it) }
+        }
+        viewModelScope.launch {
+            settingsRepo.stackDepth.collect { _state.value = _state.value.copy(stackDepth = it) }
+        }
+        viewModelScope.launch {
+            settingsRepo.folderRoot.collect { _state.value = _state.value.copy(folderRoot = it) }
         }
         viewModelScope.launch { reload() }
     }
@@ -86,11 +103,13 @@ class SwipeViewModel(
             val dateRange = settingsRepo.dateRange.first()
             val includeVideos = settingsRepo.includeVideos.first()
             val skipReviewed = settingsRepo.skipReviewed.first()
+            val sortOrder = settingsRepo.sortOrder.first()
             val reviewed = if (skipReviewed) reviewedRepo.ids.first() else emptySet()
             val photos = photoRepo.load(
                 dateRange = dateRange,
                 includeVideos = includeVideos,
                 excludeIds = reviewed,
+                sortOrder = sortOrder,
             )
             _state.value = _state.value.copy(
                 isLoading = false,
@@ -119,6 +138,7 @@ class SwipeViewModel(
                         photoId = photo.id,
                         srcUri = photo.uri,
                         folder = favFolder,
+                        root = _state.value.folderRoot,
                         displayName = photo.displayName,
                         mimeType = photo.mimeType,
                         isVideo = photo.isVideo,
@@ -144,6 +164,7 @@ class SwipeViewModel(
                 photoId = photo.id,
                 srcUri = photo.uri,
                 folder = folder,
+                root = _state.value.folderRoot,
                 displayName = photo.displayName,
                 mimeType = photo.mimeType,
                 isVideo = photo.isVideo,

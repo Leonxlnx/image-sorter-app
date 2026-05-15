@@ -52,7 +52,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.leonxlnx.imagesorter.ImageSorterApp
 import com.leonxlnx.imagesorter.R
+import androidx.compose.runtime.collectAsState
 import com.leonxlnx.imagesorter.data.FolderRepository
+import com.leonxlnx.imagesorter.data.FolderRoot
 import com.leonxlnx.imagesorter.data.SortFolder
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -63,6 +65,7 @@ fun FoldersScreen() {
     val app = remember(context) { context.applicationContext as ImageSorterApp }
     val repo: FolderRepository = remember(app) { app.folderRepository }
     val scope = rememberCoroutineScope()
+    val folderRoot by app.settingsRepository.folderRoot.collectAsState(initial = FolderRoot.Pictures)
 
     var folders by remember { mutableStateOf(listOf<SortFolder>()) }
     var addDialogVisible by rememberSaveable { mutableStateOf(false) }
@@ -98,6 +101,7 @@ fun FoldersScreen() {
                 items(folders, key = { it.name }) { folder ->
                     FolderCard(
                         folder = folder,
+                        folderRoot = folderRoot,
                         onMarkFavorite = { scope.launch { repo.setFavorite(folder.name) } },
                         onMarkDefault = { scope.launch { repo.setDefaultDown(folder.name) } },
                         onRename = { renameTarget = folder },
@@ -117,6 +121,7 @@ fun FoldersScreen() {
         NameDialog(
             title = stringResource(R.string.add_folder_title),
             confirmText = stringResource(R.string.create),
+            folderRoot = folderRoot,
             onDismiss = { addDialogVisible = false },
             onConfirm = { name ->
                 addDialogVisible = false
@@ -129,6 +134,7 @@ fun FoldersScreen() {
         NameDialog(
             title = stringResource(R.string.rename_folder_title, target.name),
             confirmText = stringResource(R.string.rename),
+            folderRoot = folderRoot,
             initial = target.name,
             onDismiss = { renameTarget = null },
             onConfirm = { name ->
@@ -180,6 +186,7 @@ private fun Header() {
 @Composable
 private fun FolderCard(
     folder: SortFolder,
+    folderRoot: FolderRoot,
     onMarkFavorite: () -> Unit,
     onMarkDefault: () -> Unit,
     onRename: () -> Unit,
@@ -203,7 +210,7 @@ private fun FolderCard(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        folder.relativePath,
+                        folder.relativePathUnder(folderRoot),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -279,6 +286,7 @@ private fun EmptyFolders() {
 private fun NameDialog(
     title: String,
     confirmText: String,
+    folderRoot: FolderRoot,
     initial: String = "",
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
@@ -298,7 +306,10 @@ private fun NameDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    stringResource(R.string.folder_path_preview, "Pictures/PhotoSwipe/${value.ifBlank { "<name>" }}"),
+                    stringResource(
+                        R.string.folder_path_preview,
+                        "${folderRoot.relativePathPrefix}/${value.ifBlank { "<name>" }}",
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

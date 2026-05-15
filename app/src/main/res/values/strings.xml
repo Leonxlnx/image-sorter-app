@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PhotoSwipe Sorter</string>
+    <string name="app_name">PhotoSwipe</string>
 
     <!-- Onboarding / permissions -->
     <string name="welcome_title">Sort your photos</string>
@@ -26,21 +26,21 @@
     <string name="pick_folder_title">Move to which folder?</string>
     <string name="pick_folder_subtitle">Pick a destination. You can add new folders from the Folders tab.</string>
     <string name="no_folders_yet">No folders yet</string>
-    <string name="no_folders_yet_hint">Use the “Add folder” button to create one in Pictures/PhotoSwipe.</string>
+    <string name="no_folders_yet_hint">Use the “Add folder” button to create one under your chosen storage root.</string>
     <string name="reload">Reload</string>
     <string name="move_here">Move here</string>
     <string name="flush_pending">Confirm delete (%1$d)</string>
     <string name="delete_now">Delete now</string>
-    <string name="pending_delete_status">%1$d / %2$d queued for delete</string>
+    <string name="pending_delete_status">%1$d of %2$d queued for delete</string>
 
     <!-- Folders -->
     <string name="folders_title">Folders</string>
-    <string name="folders_subtitle">Folders are created in Pictures/PhotoSwipe and appear in every gallery app.</string>
+    <string name="folders_subtitle">Folders live under your chosen storage root and show up in every gallery app.</string>
     <string name="add_folder">Add folder</string>
     <string name="add_folder_title">New folder</string>
     <string name="rename_folder_title">Rename “%1$s”</string>
     <string name="remove_folder_title">Remove folder?</string>
-    <string name="remove_folder_subtitle">“%1$s” will be removed from the app. Already-moved photos stay in the gallery.</string>
+    <string name="remove_folder_subtitle">“%1$s” will be removed from the app. Photos that were already moved into it stay in your gallery.</string>
     <string name="folder_name_label">Folder name</string>
     <string name="folder_name_placeholder">e.g. Travel 2024</string>
     <string name="folder_path_preview">Path: %1$s</string>
@@ -52,6 +52,7 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
+
     <string name="settings_filter_header">Filter</string>
     <string name="settings_date_range">Date range</string>
     <string name="settings_date_range_subtitle">Limit the queue to a recent slice of your library.</string>
@@ -61,18 +62,30 @@
     <string name="settings_date_month">Last 30 days</string>
     <string name="settings_date_year">Last year</string>
     <string name="settings_date_custom">Custom range</string>
+    <string name="settings_sort_order">Sort order</string>
+    <string name="settings_sort_order_subtitle">Decide which photos surface first in the swipe queue.</string>
     <string name="settings_include_videos">Include videos</string>
     <string name="settings_include_videos_subtitle">Add movies and clips to the queue.</string>
     <string name="settings_skip_reviewed">Skip already reviewed</string>
-    <string name="settings_skip_reviewed_subtitle">Hide photos you have already swiped this round.</string>
+    <string name="settings_skip_reviewed_subtitle">Hide photos you have already swiped in past sessions.</string>
 
     <string name="settings_behavior_header">Behavior</string>
     <string name="settings_batch_size">Delete batch size</string>
-    <string name="settings_batch_size_subtitle">Confirm Android delete dialog every %1$d swipes (instead of once per photo).</string>
+    <string name="settings_batch_size_subtitle">Trigger the Android delete prompt once every %1$d swipes instead of once per photo.</string>
+    <string name="settings_drag_threshold">Drag sensitivity</string>
+    <string name="settings_drag_threshold_subtitle">Pixels of drag required to commit a swipe (%1$d dp).</string>
+    <string name="settings_stack_depth">Card stack depth</string>
+    <string name="settings_stack_depth_subtitle">Number of preview cards behind the active card (%1$d).</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_subtitle">Tiny vibration after each swipe.</string>
     <string name="settings_show_hints">Direction hints</string>
-    <string name="settings_show_hints_subtitle">Tiny labels under the card for swipe directions.</string>
+    <string name="settings_show_hints_subtitle">Show the four small labels under the active card.</string>
+    <string name="settings_show_metadata">Photo metadata overlay</string>
+    <string name="settings_show_metadata_subtitle">Display file name, date and size at the bottom of each card.</string>
+
+    <string name="settings_storage_header">Storage</string>
+    <string name="settings_folder_root">Folder root</string>
+    <string name="settings_folder_root_subtitle">Where PhotoSwipe creates new gallery folders.</string>
 
     <string name="settings_appearance_header">Appearance</string>
     <string name="settings_theme">Theme</string>
@@ -80,12 +93,23 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Material You dynamic color</string>
+    <string name="settings_dynamic_color_subtitle">Match your Android 12+ wallpaper palette when available.</string>
 
     <string name="settings_data_header">Data</string>
     <string name="settings_reset_reviewed">Reset reviewed list</string>
+    <string name="settings_reset_reviewed_confirm">This unlocks photos you have previously swiped so they appear in the queue again. Your gallery is not modified.</string>
     <string name="settings_reset_done">Reviewed list cleared</string>
+    <string name="settings_reset_all">Reset all settings</string>
+    <string name="settings_reset_all_confirm">All settings return to their defaults. Your folders, reviewed list and gallery are untouched.</string>
 
+    <string name="settings_about_header">About</string>
+    <string name="settings_about_version">Version %1$s (build %2$d)</string>
+    <string name="settings_about_blurb">PhotoSwipe is an open-source photo sorter for Android. Privacy-first, no tracking, no ads.</string>
+    <string name="settings_about_repo">Open the GitHub repository</string>
+
+    <string name="dialog_confirm">Confirm</string>
+    <string name="dialog_cancel">Cancel</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
-    <string name="confirm">Confirm</string>
 </resources>

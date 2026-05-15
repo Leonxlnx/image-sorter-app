@@ -23,6 +23,7 @@ sealed interface SortAction {
         override val photoId: Long,
         val srcUri: Uri,
         val folder: SortFolder,
+        val root: FolderRoot,
         val displayName: String,
         val mimeType: String,
         val isVideo: Boolean,
@@ -31,6 +32,7 @@ sealed interface SortAction {
         override val photoId: Long,
         val srcUri: Uri,
         val folder: SortFolder,
+        val root: FolderRoot,
         val displayName: String,
         val mimeType: String,
         val isVideo: Boolean,
@@ -97,6 +99,7 @@ class SortActions(
                         photoId = action.photoId,
                         srcUri = action.srcUri,
                         folder = action.folder,
+                        root = action.root,
                         displayName = action.displayName,
                         mimeType = action.mimeType,
                         isVideo = action.isVideo,
@@ -170,7 +173,7 @@ class SortActions(
             put(MediaStore.MediaColumns.MIME_TYPE, action.mimeType.ifBlank {
                 if (action.isVideo) "video/*" else "image/*"
             })
-            put(MediaStore.MediaColumns.RELATIVE_PATH, action.folder.relativePath)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, action.folder.relativePathUnder(action.root))
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
 
@@ -196,10 +199,12 @@ class SortActions(
     }
 
     private fun copyViaLegacyFile(action: SortAction.CopyTo): Uri? {
-        val baseDir = Environment.getExternalStoragePublicDirectory(
-            if (action.isVideo) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_PICTURES
+        val pictureRoot = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_PICTURES
         )
-        val dir = File(baseDir, "${SortFolder.ROOT}/${action.folder.name}")
+        // Legacy fallback always lives under Pictures/<root>/<name> for simplicity.
+        val rootName = action.root.relativePathPrefix.substringAfter('/', "PhotoSwipe")
+        val dir = File(pictureRoot, "$rootName/${action.folder.name}")
         if (!dir.exists() && !dir.mkdirs()) return null
         val target = uniqueFile(dir, action.displayName)
         return runCatching {

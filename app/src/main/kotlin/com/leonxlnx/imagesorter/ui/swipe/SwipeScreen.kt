@@ -76,12 +76,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.leonxlnx.imagesorter.R
+import com.leonxlnx.imagesorter.data.FolderRoot
 import com.leonxlnx.imagesorter.data.Photo
 import com.leonxlnx.imagesorter.data.SortFolder
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-
-private val DragThresholdDp = 96.dp
 
 @Composable
 fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.factory())) {
@@ -146,6 +145,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
     if (pickerVisible) {
         FolderPickerSheet(
             folders = state.folders.filter { !it.isFavorite },
+            folderRoot = state.folderRoot,
             onDismiss = {
                 pickerVisible = false
                 viewModel.cancelDownPick()
@@ -226,27 +226,35 @@ private fun CardStack(
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .onSizeChanged { size = it },
         ) {
-            state.nextNextPhoto?.let {
-                PhotoCard(
-                    photo = it,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 28.dp, start = 28.dp, end = 28.dp, bottom = 4.dp)
-                        .graphicsLayer { alpha = 0.35f },
-                )
+            if (state.stackDepth >= 2) {
+                state.nextNextPhoto?.let {
+                    PhotoCard(
+                        photo = it,
+                        showMetadata = false,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 28.dp, start = 28.dp, end = 28.dp, bottom = 4.dp)
+                            .graphicsLayer { alpha = 0.35f },
+                    )
+                }
             }
-            state.nextPhoto?.let {
-                PhotoCard(
-                    photo = it,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
-                        .graphicsLayer { alpha = 0.75f },
-                )
+            if (state.stackDepth >= 1) {
+                state.nextPhoto?.let {
+                    PhotoCard(
+                        photo = it,
+                        showMetadata = false,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
+                            .graphicsLayer { alpha = 0.75f },
+                    )
+                }
             }
             DraggableTopCard(
                 photo = current,
                 size = size,
+                showMetadata = state.showMetadata,
+                dragThresholdDp = state.dragThresholdDp,
                 onSwiped = onSwiped,
             )
         }
@@ -332,13 +340,15 @@ private fun TopBar(state: SwipeUiState, onFlushQueue: () -> Unit) {
 private fun DraggableTopCard(
     photo: Photo,
     size: IntSize,
+    showMetadata: Boolean,
+    dragThresholdDp: Int,
     onSwiped: (SwipeDirection) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember(photo.id) { Animatable(0f) }
     val offsetY = remember(photo.id) { Animatable(0f) }
     val density = LocalDensity.current
-    val thresholdPx = with(density) { DragThresholdDp.toPx() }
+    val thresholdPx = with(density) { dragThresholdDp.dp.toPx() }
 
     val width = size.width.takeIf { it > 0 } ?: 1
     val height = size.height.takeIf { it > 0 } ?: 1
@@ -396,7 +406,7 @@ private fun DraggableTopCard(
                 )
             },
     ) {
-        PhotoCard(photo = photo, modifier = Modifier.fillMaxSize())
+        PhotoCard(photo = photo, showMetadata = showMetadata, modifier = Modifier.fillMaxSize())
         DirectionOverlay(
             offset = Offset(offsetX.value, offsetY.value),
             threshold = thresholdPx,
@@ -405,7 +415,11 @@ private fun DraggableTopCard(
 }
 
 @Composable
-private fun PhotoCard(photo: Photo, modifier: Modifier = Modifier) {
+private fun PhotoCard(
+    photo: Photo,
+    showMetadata: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     Surface(
         modifier = modifier
@@ -423,30 +437,31 @@ private fun PhotoCard(photo: Photo, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            // Subtle gradient + metadata at the bottom for clean readability.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-            ) {
-                Column {
-                    Text(
-                        text = photo.displayName,
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
-                        .format(java.util.Date(photo.dateTakenMillis))
-                    val sizeLabel = Formatter.formatShortFileSize(context, photo.sizeBytes)
-                    Text(
-                        text = "$date · $sizeLabel",
-                        color = Color.White.copy(alpha = 0.85f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+            if (showMetadata) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                ) {
+                    Column {
+                        Text(
+                            text = photo.displayName,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
+                            .format(java.util.Date(photo.dateTakenMillis))
+                        val sizeLabel = Formatter.formatShortFileSize(context, photo.sizeBytes)
+                        Text(
+                            text = "$date \u00B7 $sizeLabel",
+                            color = Color.White.copy(alpha = 0.85f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }
@@ -520,6 +535,7 @@ private fun HintLabel(text: String, color: Color) {
 @Composable
 private fun FolderPickerSheet(
     folders: List<SortFolder>,
+    folderRoot: FolderRoot,
     onDismiss: () -> Unit,
     onSelected: (SortFolder) -> Unit,
 ) {
@@ -557,7 +573,7 @@ private fun FolderPickerSheet(
                             },
                             supportingContent = {
                                 Text(
-                                    folder.relativePath,
+                                    folder.relativePathUnder(folderRoot),
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                 )

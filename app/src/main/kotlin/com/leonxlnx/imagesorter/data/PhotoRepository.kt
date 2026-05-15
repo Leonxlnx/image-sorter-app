@@ -17,6 +17,7 @@ class PhotoRepository(private val context: Context) {
         dateRange: DateRange,
         includeVideos: Boolean,
         excludeIds: Set<Long>,
+        sortOrder: SortOrder = SortOrder.NewestFirst,
         limit: Int = 500,
     ): List<Photo> = withContext(Dispatchers.IO) {
         val results = mutableListOf<Photo>()
@@ -24,7 +25,14 @@ class PhotoRepository(private val context: Context) {
         if (includeVideos) {
             results += queryVideos(dateRange, excludeIds, limit)
         }
-        results.sortedByDescending { it.dateTakenMillis }.take(limit)
+        val ordered = when (sortOrder) {
+            SortOrder.NewestFirst -> results.sortedByDescending { it.dateTakenMillis }
+            SortOrder.OldestFirst -> results.sortedBy { it.dateTakenMillis }
+            SortOrder.LargestFirst -> results.sortedByDescending { it.sizeBytes }
+            SortOrder.SmallestFirst -> results.sortedBy { it.sizeBytes }
+            SortOrder.Random -> results.shuffled()
+        }
+        ordered.take(limit)
     }
 
     private fun queryImages(

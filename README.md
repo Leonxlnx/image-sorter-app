@@ -1,162 +1,239 @@
-# PhotoSwipe Sorter
+# PhotoSwipe
 
-A satisfying, Tinder-style Android app for cleaning up your camera roll. Swipe through your
-photos and decide what to do with each one in four directions:
+> Tinder-style 4-way swipe photo sorter for Android. Clean up years of camera roll in minutes.
 
-| Direction | Action |
-|-----------|--------|
-| ← Left    | **Delete** the photo. Deletes are queued and confirmed in batches (one Android system dialog per N photos instead of one per photo). |
-| → Right   | **Keep** the photo (mark as reviewed, never shown again). |
-| ↑ Up      | Copy to your **Favorites** folder (auto-created at `Pictures/PhotoSwipe/Favorites/`). |
-| ↓ Down    | **Move** to one of your folders — opens a quick folder picker. |
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-22D3EE"></a>
+  <img alt="Platform: Android" src="https://img.shields.io/badge/platform-Android%208%2B-3DDC84">
+  <img alt="Language: Kotlin" src="https://img.shields.io/badge/language-Kotlin-7F52FF">
+  <img alt="UI: Jetpack Compose" src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4">
+  <img alt="Material 3" src="https://img.shields.io/badge/Material-You-EAB308">
+</p>
 
-Built with **Kotlin**, **Jetpack Compose**, and **Material 3**. Targets Android 8.0
-(API 26) through Android 14 (API 34).
+PhotoSwipe is an open-source Android app that turns gallery cleanup into a satisfying card-stack swipe game. Each photo from your camera roll is one card. Flick it in one of four directions to **delete**, **keep**, **favorite**, or **move to a custom folder**, then move on to the next one. Deletes are batched so Android only asks for confirmation once per batch instead of once per photo.
+
+The project is intentionally small, dependency-light, and 100 % local — no accounts, no analytics, no network calls.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [How a swipe works](#how-a-swipe-works)
+- [Screenshots](#screenshots)
+- [Install](#install)
+- [Build from source](#build-from-source)
+- [Configuration](#configuration)
+- [Permissions](#permissions)
+- [Architecture](#architecture)
+- [Project layout](#project-layout)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
+
+---
 
 ## Features
 
-- **Swipe-only** card stack — no tap buttons cluttering the UI. Smooth drag, fling, and a
-  color-coded direction overlay that grows as you drag.
-- **Batched delete confirmation**: the Android system delete dialog appears once per
-  configurable batch (default: every 10 swipes), not once per photo. A subtle banner at the
-  top of the swipe screen shows how many deletes are queued and lets you confirm immediately.
-- **Internal folder management** — create gallery folders directly from the app. Each
-  folder lives under `Pictures/PhotoSwipe/<name>/` and is visible in every gallery app.
-  No system folder picker required.
-- A **Favorites** folder is created automatically on first launch; you can rename it or
-  switch the favorite flag to any other folder.
-- Single-level **Undo** snackbar after every swipe (also pulls the source out of the
-  pending-delete queue).
-- **Folders tab** to add, rename, or remove destination folders. Mark one as Favorites
-  (used for up-swipe) or as the default down-swipe destination.
-- **Settings** for:
-  - Date range filter (Any time / Today / Last 7 days / Last 30 days / Last year).
-  - Include videos.
-  - Skip already-reviewed photos.
-  - Delete batch size (1–50).
-  - Haptic feedback toggle.
-  - On-card direction hints toggle.
-  - System / Light / Dark theme.
-  - Reset reviewed list.
-- Dynamic color theme on Android 12+, hand-tuned dark scheme below that.
+- **Four-direction swipe gestures** with a color-coded drag overlay that grows with your finger and locks onto the dominant axis.
+- **Batched deletes** — left-swipes are collected into a queue and submitted as a single Android delete request per batch (default 10, configurable 1–50).
+- **App-managed folders** — create new gallery folders by name, no SAF picker, no permission dance. New folders appear under `Pictures/PhotoSwipe/<name>/` (or `DCIM/PhotoSwipe/<name>/` if you prefer) and are visible in every gallery app.
+- **Internal Favorites folder**, auto-seeded on first launch so up-swipe is instantly useful.
+- **Single-level Undo** via snackbar after every swipe, including a queue-reinsert when applicable.
+- **Date-range and sort-order filters** to focus a session on what matters: newest, oldest, largest, smallest, random, or a fixed time window.
+- **Material 3 + dynamic color** (Android 12+) with manual System / Light / Dark override and a toggle for Material You wallpaper colors.
+- **Themed monochrome icon** for the Android 13+ themed-icons system setting.
+- **Edge-to-edge UI**, haptics, optional direction hints, optional metadata overlay, configurable drag sensitivity and card-stack depth.
+- **Privacy-first**: no internet permission, no analytics, no crash reporters, no tracking.
+- **Reset everything** to defaults at any time from Settings.
 
-## Screens
+## How a swipe works
 
-1. **Swipe** — the main card stack. The top card is draggable in any of four directions
-   and flings off-screen on release. The next two cards peek through underneath for depth.
-2. **Folders** — list your destination folders. The floating **Add folder** button opens a
-   simple name dialog; the folder is created in `Pictures/PhotoSwipe/<name>/` the first
-   time you swipe a photo into it.
-3. **Settings** — every knob the app exposes.
+| Direction | Action                                                                                  |
+| --------- | --------------------------------------------------------------------------------------- |
+| ← Left    | Queue the photo for delete. The Android delete prompt appears once your batch fills up. |
+| → Right   | Keep the photo and mark it reviewed so it does not reappear next session.               |
+| ↑ Up      | Copy the photo into your **Favorites** folder.                                          |
+| ↓ Down    | Open a bottom-sheet folder picker; the photo is moved into the chosen folder.           |
 
-## How destinations work
+The threshold (96 dp by default) and the number of preview cards stacked underneath the active one are both adjustable in Settings.
 
-Destinations are app-managed. You create them by name in the Folders tab; PhotoSwipe Sorter
-writes into `Pictures/PhotoSwipe/<name>/` using **MediaStore inserts** on Android 10+ (no
-storage permissions or document tree pickers needed). On Android 9 and below it falls back
-to direct `File` writes plus `MediaScannerConnection` so the gallery indexes the new file.
+## Screenshots
 
-Deletes are deferred: every left-swipe enqueues the source URI. When the queue reaches the
-configured batch size — or when you tap **Delete now** on the banner — the app builds a
-single `MediaStore.createDeleteRequest` for the whole batch, so Android shows one
-confirmation dialog instead of one per photo. The dialog still asks for explicit user
-consent (required on Android 11+); only the *frequency* is reduced.
+Screenshots will be added as part of an upcoming release. In the meantime, the in-app UI consists of three tabs:
 
-## Permissions requested
+- **Swipe** — full-bleed card stack with progress bar, pending-delete banner, and an undo snackbar.
+- **Folders** — list of managed folders with create, rename, remove, mark-favorite and mark-default-down actions, plus a FAB to add new folders.
+- **Settings** — grouped, icon-tinted rows for filter, behavior, storage, appearance, data and about.
 
-| Permission | Why |
-|------------|-----|
-| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` | Read your gallery on Android 13+. |
-| `READ_MEDIA_VISUAL_USER_SELECTED` | Support partial photo access on Android 14+. |
-| `READ_EXTERNAL_STORAGE` | Legacy read on Android 12 and below. |
-| `WRITE_EXTERNAL_STORAGE` | Legacy write fallback on Android 9 and below (`maxSdkVersion=28`). |
+## Install
 
-## Building
+Pre-built debug APKs are attached to each PR in the [Releases](https://github.com/Leonxlnx/image-sorter-app/releases) section once the corresponding pull request is merged. To sideload:
+
+1. Download the APK to your phone.
+2. Tap it, allow "Install unknown apps" for your browser/file manager if prompted.
+3. On first launch, grant photo access (`READ_MEDIA_IMAGES`, plus `READ_MEDIA_VIDEO` if you opted into videos).
+
+Release builds for Google Play are not currently distributed; you are encouraged to build from source.
+
+## Build from source
 
 ### Prerequisites
 
-- JDK 17
-- Android SDK Platform 34 + Build-Tools 34 (the Android SDK command-line tools are enough;
-  Gradle will install the required components for you).
-- Set `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) to your SDK location, **or** create a
-  `local.properties` file at the repo root with `sdk.dir=/path/to/android-sdk`.
+- JDK 17 (Temurin, OpenJDK, or Zulu)
+- Android SDK with platform 34 and build-tools 34 installed
+- ANDROID_HOME / ANDROID_SDK_ROOT pointing at your SDK directory
+- An Android device or emulator running Android 8.0 (API 26) or higher
 
-### Build a debug APK
+### Build the debug APK
 
 ```bash
+git clone https://github.com/Leonxlnx/image-sorter-app.git
+cd image-sorter-app
 ./gradlew :app:assembleDebug
 ```
 
-The resulting APK lives at:
+The resulting APK is at `app/build/outputs/apk/debug/app-debug.apk`.
 
-```
-app/build/outputs/apk/debug/app-debug.apk
+### Lint and tests
+
+```bash
+./gradlew :app:lintDebug
+./gradlew :app:testDebugUnitTest    # if/when unit tests are added
 ```
 
-You can install it directly to a connected device:
+### Install onto a connected device
 
 ```bash
 ./gradlew :app:installDebug
 ```
 
-### Lint
+## Configuration
 
-```bash
-./gradlew :app:lintDebug
+Every option lives under **Settings**. Each section reflects a separate concern:
+
+| Section        | What you can tune                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| **Filter**     | Date range (any, today, 7 days, 30 days, 1 year), sort order, include videos, skip already-reviewed |
+| **Behavior**   | Delete batch size, drag sensitivity, card stack depth, haptics, direction hints, metadata overlay  |
+| **Storage**    | Folder root (`Pictures/PhotoSwipe` or `DCIM/PhotoSwipe`)                                           |
+| **Appearance** | Theme (System / Light / Dark), Material You dynamic color toggle                                   |
+| **Data**       | Reset the reviewed list, reset all settings to defaults                                            |
+| **About**      | Version, license info, link to the GitHub repository                                               |
+
+Settings are persisted via Jetpack DataStore (`Preferences`).
+
+## Permissions
+
+PhotoSwipe asks only for what it needs.
+
+| Permission                                 | Why                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `READ_MEDIA_IMAGES` (Android 13+)          | Read photos from your camera roll                                   |
+| `READ_MEDIA_VIDEO` (Android 13+, optional) | Required only when "Include videos" is enabled                      |
+| `READ_EXTERNAL_STORAGE` (Android ≤ 12)     | Legacy fallback for reading the media store                         |
+| `WRITE_EXTERNAL_STORAGE` (Android ≤ 9)     | Legacy fallback when creating folders on pre-Q devices              |
+
+There is **no `INTERNET` permission**. The app cannot phone home even if it wanted to.
+
+## Architecture
+
+PhotoSwipe is a single-module Compose app built around three repositories and one Application-owned service:
+
+```
+MainActivity ──> AppRoot (Compose nav host)
+                  ├── SwipeScreen ────── SwipeViewModel ──┐
+                  ├── FoldersScreen                       │
+                  └── SettingsScreen                      │
+                                                          ▼
+ImageSorterApp ─┬─ PhotoRepository       (MediaStore queries)
+                ├─ FolderRepository      (DataStore-backed list of SortFolder)
+                ├─ ReviewedRepository    (DataStore-backed set of IDs)
+                ├─ SettingsRepository    (DataStore-backed preferences)
+                └─ SortActions           (Keep / EnqueueDelete / CopyTo / MoveTo)
 ```
 
-## CI
+Key decisions:
 
-A ready-to-use GitHub Actions workflow lives at `docs/android-ci.yml`. To activate it, copy
-the file into the standard location (the OAuth app that opened this PR did not have the
-`workflow` scope, so the file is parked under `docs/` so the PR could be created):
+- **No DI framework.** `ImageSorterApp` lazily constructs each repository and exposes them as properties. ViewModels read them via `CreationExtras`.
+- **No SAF.** All folder writes go through `MediaStore` with `RELATIVE_PATH` on API 29+ and a `File` + `MediaScannerConnection` fallback on older versions.
+- **Batched deletes.** `SortActions` keeps an in-memory pending list. The UI auto-flushes when the batch threshold is reached or when the user taps "Delete now"; flushing calls `MediaStore.createDeleteRequest(...)` and emits a single `IntentSender` for the whole batch.
+- **Compose-only navigation.** Three tabs via `NavHost` + a Material 3 `NavigationBar` — no fragments or activity per screen.
 
-```bash
-mkdir -p .github/workflows
-cp docs/android-ci.yml .github/workflows/android.yml
-git add .github/workflows/android.yml && git commit -m "Enable Android CI"
-```
-
-The workflow runs lint + a debug-APK build on every push and pull request and uploads the
-resulting APK as a build artifact called `PhotoSwipeSorter-debug-apk`.
-
-## Project structure
+## Project layout
 
 ```
-app/
-└── src/main/
-    ├── AndroidManifest.xml
-    ├── kotlin/com/leonxlnx/imagesorter/
-    │   ├── ImageSorterApp.kt          # Application + simple service locator
-    │   ├── MainActivity.kt            # Hosts Compose theme + nav
-    │   ├── data/
-    │   │   ├── DateRange.kt           # Filter presets and custom range
-    │   │   ├── Photo.kt
-    │   │   ├── PhotoRepository.kt     # MediaStore queries (images + optional videos)
-    │   │   ├── SettingsRepository.kt  # DataStore-backed settings
-    │   │   ├── FolderRepository.kt    # User-picked SAF destinations
-    │   │   ├── ReviewedRepository.kt  # Tracks already-swiped photo IDs
-    │   │   └── SortActions.kt         # Keep / Delete / Copy / Move primitives
-    │   └── ui/
-    │       ├── AppRoot.kt             # Bottom-nav scaffold
-    │       ├── permission/PermissionGate.kt
-    │       ├── swipe/                 # Card stack + drag UI
-    │       ├── folders/FoldersScreen.kt
-    │       ├── settings/SettingsScreen.kt
-    │       └── theme/Theme.kt
-    └── res/
-        ├── drawable/                  # Launcher
-        ├── mipmap-anydpi-v26/         # Adaptive icon
-        └── values/                    # strings, colors, themes
+app/src/main/kotlin/com/leonxlnx/imagesorter/
+├── ImageSorterApp.kt        # Application class, owns repositories
+├── MainActivity.kt          # Edge-to-edge Compose host, applies the theme
+├── data/                    # MediaStore + DataStore-backed repositories
+│   ├── DateRange.kt
+│   ├── FolderRepository.kt
+│   ├── Photo.kt
+│   ├── PhotoRepository.kt
+│   ├── ReviewedRepository.kt
+│   ├── SettingsRepository.kt
+│   ├── SortActions.kt
+│   └── SortOrder.kt
+└── ui/
+    ├── AppRoot.kt           # NavHost + bottom navigation
+    ├── folders/             # Folder management screen + name dialog
+    ├── permission/          # Runtime permission gate
+    ├── settings/            # Settings screen with grouped rows
+    ├── swipe/               # Card stack, drag detection, view model
+    └── theme/               # Material 3 color schemes + ThemeMode
 ```
+
+## FAQ
+
+**Can PhotoSwipe permanently delete photos without the Android system prompt?**
+No. Android 11+ requires the system delete prompt for any media you did not create. PhotoSwipe minimizes the friction by batching deletes — one prompt per N photos — but it cannot suppress the prompt entirely.
+
+**Will it delete my photos by accident?**
+A delete is only a delete after you confirm the system prompt. Until the batch flushes, queued photos sit in an in-memory queue you can clear by killing the app, undoing the last swipe, or simply continuing without flushing.
+
+**Where do my folders go?**
+By default, into `Pictures/PhotoSwipe/<folder name>/`. You can switch the root to `DCIM/PhotoSwipe/` in Settings → Storage.
+
+**Why does the app need video permission?**
+Only if you enable "Include videos" under Settings → Filter. Otherwise, the app never asks for it.
+
+**Does it sync between devices?**
+No. PhotoSwipe is single-device, offline-only by design.
 
 ## Roadmap
 
-- Statistics screen (deleted size, time saved).
-- Configurable swipe targets per direction.
-- Multi-step undo.
-- Trash folder mode (instead of system delete).
+Ideas that may land in future versions:
+
+- Per-folder color tags / icons
+- Optional review log (CSV export of what was sorted where)
+- Quick-pick chip for a recently-used folder on the swipe screen
+- Tablet / foldable two-pane layout
+- Localization beyond English
+- Automated UI tests with Compose + Maestro
+
+If one of these excites you, see [Contributing](#contributing).
+
+## Contributing
+
+Contributions are welcome. Before you start a non-trivial change, please open an issue describing what you have in mind so we can sanity-check the approach.
+
+A short checklist for pull requests:
+
+1. Fork the repo and create a feature branch off `main`.
+2. Run `./gradlew :app:lintDebug :app:assembleDebug` locally and make sure both succeed.
+3. Keep changes minimal and aligned with the existing Compose / Material 3 style.
+4. Update [CHANGELOG.md](CHANGELOG.md) under an `Unreleased` section.
+5. Open a PR following the template — describe **what** changed and **why**.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for a longer guide, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
+
+## Security
+
+Found a security issue? Please **do not** open a public GitHub issue. Instead, follow the disclosure process described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT — see `LICENSE`.
+PhotoSwipe is released under the [MIT License](LICENSE). You are free to use, modify, and redistribute it for any purpose, including commercial use. Attribution is appreciated.

@@ -9,17 +9,16 @@ import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A managed gallery destination folder under `Pictures/PhotoSwipe/<name>/`. */
+/** A managed gallery destination folder under the configured public root / `<name>/`. */
 data class SortFolder(
     val name: String,
     val isFavorite: Boolean = false,
     val isDefaultDown: Boolean = false,
 ) {
-    /** Path inside the public Pictures collection. */
-    val relativePath: String get() = "Pictures/$ROOT/$name"
+    /** Path inside the configured public root collection. */
+    fun relativePathUnder(root: FolderRoot): String = "${root.relativePathPrefix}/$name"
 
     companion object {
-        const val ROOT = "PhotoSwipe"
         const val FAVORITES_DEFAULT_NAME = "Favorites"
     }
 }

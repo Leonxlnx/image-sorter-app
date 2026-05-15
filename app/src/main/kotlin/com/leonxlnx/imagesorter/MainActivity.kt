@@ -17,9 +17,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val settingsRepository = (application as ImageSorterApp).settingsRepository
         setContent {
-            val themeFlow = settingsRepository.theme.collectAsState(initial = ThemeMode.System)
-            val mode by themeFlow
-            ImageSorterTheme(themeMode = mode) {
+            val mode by settingsRepository.theme.collectAsState(initial = ThemeMode.System)
+            val dynamic by settingsRepository.dynamicColor.collectAsState(initial = true)
+            ImageSorterTheme(themeMode = mode, dynamicColor = dynamic) {
                 AppRoot()
             }
         }
