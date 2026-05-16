@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General questions and discussion
+    url: https://github.com/Leonxlnx/image-sorter-app/discussions
+    about: Use Discussions for general questions, ideas and feedback.
+  - name: Security vulnerability
+    url: https://github.com/Leonxlnx/image-sorter-app/security
+    about: Please report security issues privately via a GitHub security advisory.

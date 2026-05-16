@@ -41,7 +41,11 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun ImageSorterTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
+fun ImageSorterTheme(
+    themeMode: ThemeMode,
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     val systemDark = isSystemInDarkTheme()
     val useDark = when (themeMode) {
         ThemeMode.System -> systemDark
@@ -50,7 +54,7 @@ fun ImageSorterTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
     }
     val context = LocalContext.current
     val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (useDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         useDark -> DarkColors
         else -> LightColors

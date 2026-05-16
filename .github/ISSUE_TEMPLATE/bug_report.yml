@@ -1,0 +1,50 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much as you can — vague reports tend to sit unactioned.
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      description: Settings → About shows this.
+      placeholder: e.g. 1.2.0 (build 3)
+    validations:
+      required: true
+  - type: input
+    id: android_version
+    attributes:
+      label: Android version & device
+      placeholder: e.g. Android 14 on Pixel 7
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Swipe left on a photo
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots (optional)
+      description: If you can capture a `logcat`, paste relevant lines here. Otherwise, screenshots of the broken screen are great.
