@@ -22,7 +22,6 @@
     <string name="empty_state_title">All caught up</string>
     <string name="empty_state_subtitle">No more photos match the current filter.</string>
     <string name="undo">Undo</string>
-    <string name="undo_done">Restored</string>
     <string name="pick_folder_title">Move to which folder?</string>
     <string name="pick_folder_subtitle">Pick a destination. You can add new folders from the Folders tab.</string>
     <string name="no_folders_yet">No folders yet</string>
@@ -30,8 +29,7 @@
     <string name="reload">Reload</string>
     <string name="move_here">Move here</string>
     <string name="flush_pending">Confirm delete (%1$d)</string>
-    <string name="delete_now">Delete now</string>
-    <string name="pending_delete_status">%1$d of %2$d queued for delete</string>
+    <string name="pending_delete_a11y">%1$d photos queued for delete. Tap to confirm.</string>
 
     <!-- Folders -->
     <string name="folders_title">Folders</string>
