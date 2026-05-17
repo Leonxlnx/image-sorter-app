@@ -8,10 +8,19 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,8 +38,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -41,7 +52,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,6 +89,7 @@ import com.leonxlnx.imagesorter.R
 import com.leonxlnx.imagesorter.data.FolderRoot
 import com.leonxlnx.imagesorter.data.Photo
 import com.leonxlnx.imagesorter.data.SortFolder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -86,35 +97,24 @@ import kotlin.math.abs
 fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.factory())) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
-    val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val errorSnackbar = remember { SnackbarHostState() }
     var pickerVisible by rememberSaveable { mutableStateOf(false) }
 
     val intentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { /* Delete batches resolve via the next reload. */ }
 
+    // Only surface real errors. Info and per-swipe undo no longer pop a snackbar.
     LaunchedEffect(viewModel) {
         viewModel.events.collect { ev ->
             when (ev) {
                 is SwipeEvent.LaunchIntent ->
                     intentLauncher.launch(IntentSenderRequest.Builder(ev.intentSender).build())
                 is SwipeEvent.ChooseFolderForDown -> pickerVisible = true
-                is SwipeEvent.Error -> snackbar.showSnackbar(ev.message)
-                is SwipeEvent.Info -> snackbar.showSnackbar(ev.message)
+                is SwipeEvent.Error -> errorSnackbar.showSnackbar(ev.message)
+                is SwipeEvent.Info -> Unit
             }
         }
-    }
-
-    LaunchedEffect(state.undo) {
-        val u = state.undo ?: return@LaunchedEffect
-        val result = snackbar.showSnackbar(
-            message = u.description,
-            actionLabel = context.getString(R.string.undo),
-            withDismissAction = true,
-        )
-        if (result == SnackbarResult.ActionPerformed) viewModel.consumeUndo()
-        else viewModel.dismissUndo()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -128,14 +128,22 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
             else -> CardStack(
                 state = state,
                 onSwiped = { direction ->
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     viewModel.onSwipe(direction)
                 },
                 onFlushQueue = { viewModel.flushPendingDeletes() },
             )
         }
+        UndoPill(
+            visible = state.undo != null,
+            onUndo = { viewModel.consumeUndo() },
+            onExpire = { viewModel.dismissUndo() },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp),
+        )
         SnackbarHost(
-            hostState = snackbar,
+            hostState = errorSnackbar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(16.dp),
@@ -263,74 +271,143 @@ private fun CardStack(
 }
 
 @Composable
+private fun UndoPill(
+    visible: Boolean,
+    onUndo: () -> Unit,
+    onExpire: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Auto-dismiss after a short window so the chip never lingers.
+    LaunchedEffect(visible) {
+        if (visible) {
+            delay(3500L)
+            onExpire()
+        }
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        modifier = modifier,
+    ) {
+        Surface(
+            modifier = Modifier
+                .shadow(8.dp, RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(999.dp))
+                .clickable { onUndo() },
+            color = MaterialTheme.colorScheme.inverseSurface,
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.Undo,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.inverseOnSurface,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.undo),
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TopBar(state: SwipeUiState, onFlushQueue: () -> Unit) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${state.totalProcessed}/${state.queue.size}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.width(12.dp))
-            LinearProgressIndicator(
-                progress = {
-                    if (state.queue.isEmpty()) 0f else state.totalProcessed.toFloat() / state.queue.size
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(6.dp)),
+        Text(
+            text = "${state.totalProcessed}/${state.queue.size}",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.width(12.dp))
+        LinearProgressIndicator(
+            progress = {
+                if (state.queue.isEmpty()) 0f else state.totalProcessed.toFloat() / state.queue.size
+            },
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(6.dp)),
+        )
+        Spacer(Modifier.width(12.dp))
+        PendingDeletePill(
+            count = state.pendingDeleteCount,
+            batchSize = state.batchSize,
+            onClick = onFlushQueue,
+        )
+    }
+}
+
+@Composable
+private fun PendingDeletePill(count: Int, batchSize: Int, onClick: () -> Unit) {
+    AnimatedVisibility(
+        visible = count > 0,
+        enter = scaleIn(initialScale = 0.6f) + fadeIn(),
+        exit = scaleOut(targetScale = 0.6f) + fadeOut(),
+    ) {
+        val scale by animateFloatAsState(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow,
+            ),
+            label = "pillScale",
+        )
+        // Subtle bouncy pulse whenever the count changes.
+        val pulse = remember(count) { Animatable(1f) }
+        LaunchedEffect(count) {
+            pulse.snapTo(1.18f)
+            pulse.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
             )
         }
-        AnimatedVisibility(
-            visible = state.pendingDeleteCount > 0,
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-                tonalElevation = 1.dp,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Outlined.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.pending_delete_status,
-                            state.pendingDeleteCount,
-                            state.batchSize,
-                        ),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    TextButton(onClick = onFlushQueue) {
-                        Text(
-                            stringResource(R.string.delete_now),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
+        val a11y = stringResource(R.string.pending_delete_a11y, count)
+        Surface(
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = scale * pulse.value
+                    scaleY = scale * pulse.value
                 }
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClickLabel = a11y) { onClick() },
+            color = MaterialTheme.colorScheme.errorContainer,
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "$count / $batchSize",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }
@@ -374,29 +451,62 @@ private fun DraggableTopCard(
                             else -> if (dy > 0) SwipeDirection.Down else SwipeDirection.Up
                         }
                         if (direction == null) {
-                            scope.launch { offsetX.animateTo(0f, tween(200)) }
-                            scope.launch { offsetY.animateTo(0f, tween(200)) }
+                            scope.launch {
+                                offsetX.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                            scope.launch {
+                                offsetY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
                         } else {
                             val targetX = when (direction) {
-                                SwipeDirection.Right -> width * 1.5f
-                                SwipeDirection.Left -> -width * 1.5f
+                                SwipeDirection.Right -> width * 1.4f
+                                SwipeDirection.Left -> -width * 1.4f
                                 SwipeDirection.Up, SwipeDirection.Down -> 0f
                             }
                             val targetY = when (direction) {
-                                SwipeDirection.Up -> -height * 1.5f
-                                SwipeDirection.Down -> height * 1.5f
+                                SwipeDirection.Up -> -height * 1.4f
+                                SwipeDirection.Down -> height * 1.4f
                                 SwipeDirection.Left, SwipeDirection.Right -> 0f
                             }
-                            scope.launch { offsetX.animateTo(targetX, tween(240)) }
+                            val exit = tween<Float>(durationMillis = 260, easing = FastOutSlowInEasing)
+                            scope.launch { offsetX.animateTo(targetX, exit) }
                             scope.launch {
-                                offsetY.animateTo(targetY, tween(240))
+                                offsetY.animateTo(targetY, exit)
                                 onSwiped(direction)
                             }
                         }
                     },
                     onDragCancel = {
-                        scope.launch { offsetX.animateTo(0f, tween(200)) }
-                        scope.launch { offsetY.animateTo(0f, tween(200)) }
+                        scope.launch {
+                            offsetX.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow,
+                                ),
+                            )
+                        }
+                        scope.launch {
+                            offsetY.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow,
+                                ),
+                            )
+                        }
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
@@ -417,8 +527,8 @@ private fun DraggableTopCard(
 @Composable
 private fun PhotoCard(
     photo: Photo,
-    showMetadata: Boolean = true,
     modifier: Modifier = Modifier,
+    showMetadata: Boolean = true,
 ) {
     val context = LocalContext.current
     Surface(

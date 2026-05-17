@@ -2,6 +2,21 @@
 
 All notable changes to PhotoSwipe are documented here. This project follows [Semantic Versioning](https://semver.org/) loosely — minor version bumps for new features, patch bumps for fixes, and a major bump only on breaking UX changes.
 
+## [1.2.1] – Quiet UX polish
+
+### Changed
+
+- Removed the bottom snackbar that popped up after **every** swipe. The screen stays calm now; only the card animation confirms the action.
+- Replaced the per-action snackbar with a transient floating **Undo** pill that slides up briefly after each swipe and auto-fades after 3.5 seconds. Tap it once to restore the last photo.
+- Redesigned the batched-delete indicator: instead of a loud full-width banner, the queue now lives as a compact `n / batchSize` pill in the top bar, with a subtle bouncy pulse whenever it increments. Tap the pill to trigger the system delete prompt for the whole batch.
+- Switched the card return-to-center and exit animations from linear tweens to spring animations for a more satisfying, physical feel.
+- Reordered `PhotoCard` parameters so `modifier` comes before optional parameters, matching the Compose API style.
+
+### Internal
+
+- Bumped `versionName` to `1.2.1`, `versionCode` to `4`.
+- Removed unused string resources (`undo_done`, `delete_now`, `pending_delete_status`).
+
 ## [1.2.0] – Launch readiness
 
 ### Added
