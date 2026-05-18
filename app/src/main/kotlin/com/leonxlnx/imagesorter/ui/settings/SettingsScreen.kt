@@ -96,6 +96,7 @@ fun SettingsScreen() {
     val themeMode by settings.theme.collectAsState(initial = ThemeMode.System)
     val dynamicColor by settings.dynamicColor.collectAsState(initial = true)
     val folderRoot by settings.folderRoot.collectAsState(initial = FolderRoot.Pictures)
+    val reduceMotion by settings.reduceMotion.collectAsState(initial = false)
 
     var resetReviewedDialog by remember { mutableStateOf(false) }
     var resetAllDialog by remember { mutableStateOf(false) }
@@ -224,6 +225,13 @@ fun SettingsScreen() {
                         subtitle = stringResource(R.string.settings_show_metadata_subtitle),
                         checked = showMetadata,
                         onCheckedChange = { v -> scope.launch { settings.setShowMetadata(v) } },
+                    )
+                    ToggleRow(
+                        icon = Icons.Outlined.AutoAwesome,
+                        title = stringResource(R.string.settings_reduce_motion),
+                        subtitle = stringResource(R.string.settings_reduce_motion_subtitle),
+                        checked = reduceMotion,
+                        onCheckedChange = { v -> scope.launch { settings.setReduceMotion(v) } },
                     )
                 }
             }

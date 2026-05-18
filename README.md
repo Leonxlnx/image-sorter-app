@@ -8,6 +8,7 @@
   <img alt="Language: Kotlin" src="https://img.shields.io/badge/language-Kotlin-7F52FF">
   <img alt="UI: Jetpack Compose" src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4">
   <img alt="Material 3" src="https://img.shields.io/badge/Material-You-EAB308">
+  <a href="PRIVACY.md"><img alt="Privacy: 100% local" src="https://img.shields.io/badge/privacy-100%25%20local-0EA5E9"></a>
 </p>
 
 PhotoSwipe is an open-source Android app that turns gallery cleanup into a satisfying card-stack swipe game. Each photo from your camera roll is one card. Flick it in one of four directions to **delete**, **keep**, **favorite**, or **move to a custom folder**, then move on to the next one. Deletes are batched so Android only asks for confirmation once per batch instead of once per photo.
@@ -30,6 +31,7 @@ The project is intentionally small, dependency-light, and 100 % local — no acc
 - [FAQ](#faq)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
+- [Privacy](#privacy)
 - [Security](#security)
 - [License](#license)
 
@@ -41,12 +43,19 @@ The project is intentionally small, dependency-light, and 100 % local — no acc
 - **Batched deletes** — left-swipes are collected into a queue and submitted as a single Android delete request per batch (default 10, configurable 1–50).
 - **App-managed folders** — create new gallery folders by name, no SAF picker, no permission dance. New folders appear under `Pictures/PhotoSwipe/<name>/` (or `DCIM/PhotoSwipe/<name>/` if you prefer) and are visible in every gallery app.
 - **Internal Favorites folder**, auto-seeded on first launch so up-swipe is instantly useful.
-- **Single-level Undo** via snackbar after every swipe, including a queue-reinsert when applicable.
+- **Quiet Undo pill** — no per-swipe snackbar spam. A single transient pill slides in after each swipe and auto-fades after 3.5 seconds.
+- **Long-press preview** — press and hold any card for a full-screen view of the photo before you commit.
+- **Session statistics** — when the queue is empty, the app shows how many photos you deleted, kept, favorited and sorted in that session.
 - **Date-range and sort-order filters** to focus a session on what matters: newest, oldest, largest, smallest, random, or a fixed time window.
 - **Material 3 + dynamic color** (Android 12+) with manual System / Light / Dark override and a toggle for Material You wallpaper colors.
 - **Themed monochrome icon** for the Android 13+ themed-icons system setting.
-- **Edge-to-edge UI**, haptics, optional direction hints, optional metadata overlay, configurable drag sensitivity and card-stack depth.
-- **Privacy-first**: no internet permission, no analytics, no crash reporters, no tracking.
+- **Edge-to-edge UI** with proper status / nav bar inset handling on every device.
+- **Tablet & landscape friendly** — the card deck is capped at a comfortable width so it never feels stretched.
+- **Predictive back gesture** support on Android 13+.
+- **Backup-aware** — cloud backup and device transfer preserve your settings and folder list, but drop per-session reviewed state.
+- **Accessibility** — TalkBack-friendly card semantics and an optional **Reduce motion** toggle.
+- **Granular settings**: haptics, direction hints, metadata overlay, drag sensitivity, card-stack depth, batch size, folder root.
+- **Privacy-first**: no internet permission, no analytics, no crash reporters, no tracking. See [PRIVACY.md](PRIVACY.md).
 - **Reset everything** to defaults at any time from Settings.
 
 ## How a swipe works
@@ -69,6 +78,8 @@ Screenshots will be added as part of an upcoming release. In the meantime, the i
 - **Settings** — grouped, icon-tinted rows for filter, behavior, storage, appearance, data and about.
 
 ## Install
+
+F-Droid metadata is included under [`fastlane/metadata/android/en-US/`](fastlane/metadata/android/en-US/) so PhotoSwipe is ready for submission to the F-Droid catalogue.
 
 Pre-built debug APKs are attached to each PR in the [Releases](https://github.com/Leonxlnx/image-sorter-app/releases) section once the corresponding pull request is merged. To sideload:
 
@@ -114,14 +125,14 @@ The resulting APK is at `app/build/outputs/apk/debug/app-debug.apk`.
 
 Every option lives under **Settings**. Each section reflects a separate concern:
 
-| Section        | What you can tune                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| **Filter**     | Date range (any, today, 7 days, 30 days, 1 year), sort order, include videos, skip already-reviewed |
-| **Behavior**   | Delete batch size, drag sensitivity, card stack depth, haptics, direction hints, metadata overlay  |
-| **Storage**    | Folder root (`Pictures/PhotoSwipe` or `DCIM/PhotoSwipe`)                                           |
-| **Appearance** | Theme (System / Light / Dark), Material You dynamic color toggle                                   |
-| **Data**       | Reset the reviewed list, reset all settings to defaults                                            |
-| **About**      | Version, license info, link to the GitHub repository                                               |
+| Section        | What you can tune                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Filter**     | Date range (any, today, 7 days, 30 days, 1 year), sort order, include videos, skip already-reviewed             |
+| **Behavior**   | Delete batch size, drag sensitivity, card stack depth, haptics, direction hints, metadata overlay, reduce motion |
+| **Storage**    | Folder root (`Pictures/PhotoSwipe` or `DCIM/PhotoSwipe`)                                                       |
+| **Appearance** | Theme (System / Light / Dark), Material You dynamic color toggle                                               |
+| **Data**       | Reset the reviewed list, reset all settings to defaults                                                        |
+| **About**      | Version, license info, link to the GitHub repository                                                           |
 
 Settings are persisted via Jetpack DataStore (`Preferences`).
 
@@ -213,6 +224,7 @@ Ideas that may land in future versions:
 - Tablet / foldable two-pane layout
 - Localization beyond English
 - Automated UI tests with Compose + Maestro
+- F-Droid catalogue submission
 
 If one of these excites you, see [Contributing](#contributing).
 
@@ -229,6 +241,10 @@ A short checklist for pull requests:
 5. Open a PR following the template — describe **what** changed and **why**.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for a longer guide, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
+
+## Privacy
+
+PhotoSwipe is 100 % local. No analytics, no telemetry, no ads, no internet permission. See [PRIVACY.md](PRIVACY.md) for the full policy.
 
 ## Security
 

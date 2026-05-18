@@ -76,6 +76,11 @@ class SettingsRepository(private val context: Context) {
         FolderRoot.fromId(p[Keys.FOLDER_ROOT])
     }
 
+    /** When true, springs and exit-tweens are short-circuited for motion-sensitive users. */
+    val reduceMotion: Flow<Boolean> = context.dataStore.data.map { p ->
+        p[Keys.REDUCE_MOTION] ?: false
+    }
+
     suspend fun setDateRange(range: DateRange) {
         context.dataStore.edit { it[Keys.DATE_RANGE_ID] = range.id }
     }
@@ -128,6 +133,10 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.FOLDER_ROOT] = value.id }
     }
 
+    suspend fun setReduceMotion(value: Boolean) {
+        context.dataStore.edit { it[Keys.REDUCE_MOTION] = value }
+    }
+
     /** Wipe every persisted setting back to defaults. */
     suspend fun resetAll() {
         context.dataStore.edit { it.clear() }
@@ -147,6 +156,7 @@ class SettingsRepository(private val context: Context) {
         val DRAG_THRESHOLD_DP = intPreferencesKey("drag_threshold_dp")
         val STACK_DEPTH = intPreferencesKey("stack_depth")
         val FOLDER_ROOT = stringPreferencesKey("folder_root")
+        val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
     }
 
     companion object {

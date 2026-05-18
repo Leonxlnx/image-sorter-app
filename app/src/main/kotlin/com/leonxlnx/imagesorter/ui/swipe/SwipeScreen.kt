@@ -22,6 +22,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -33,10 +34,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
@@ -44,6 +50,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -78,9 +85,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -99,6 +110,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
     val haptics = LocalHapticFeedback.current
     val errorSnackbar = remember { SnackbarHostState() }
     var pickerVisible by rememberSaveable { mutableStateOf(false) }
+    var previewPhoto by remember { mutableStateOf<Photo?>(null) }
 
     val intentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -122,6 +134,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
             state.isLoading -> LoadingState()
             state.isEmpty -> EmptyState(
                 pendingDeletes = state.pendingDeleteCount,
+                stats = state.stats,
                 onFlush = { viewModel.flushPendingDeletes() },
                 onReload = { viewModel.reload() },
             )
@@ -132,6 +145,7 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
                     viewModel.onSwipe(direction)
                 },
                 onFlushQueue = { viewModel.flushPendingDeletes() },
+                onPreview = { previewPhoto = it },
             )
         }
         UndoPill(
@@ -164,6 +178,10 @@ fun SwipeScreen(viewModel: SwipeViewModel = viewModel(factory = SwipeViewModel.f
             },
         )
     }
+
+    previewPhoto?.let { photo ->
+        FullScreenPreview(photo = photo, onDismiss = { previewPhoto = null })
+    }
 }
 
 @Composable
@@ -174,7 +192,12 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun EmptyState(pendingDeletes: Int, onFlush: () -> Unit, onReload: () -> Unit) {
+private fun EmptyState(
+    pendingDeletes: Int,
+    stats: SessionStats,
+    onFlush: () -> Unit,
+    onReload: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -199,6 +222,10 @@ private fun EmptyState(pendingDeletes: Int, onFlush: () -> Unit, onReload: () ->
             stringResource(R.string.empty_state_subtitle),
             style = MaterialTheme.typography.bodyLarge,
         )
+        if (stats.total > 0) {
+            Spacer(Modifier.height(24.dp))
+            SessionStatsCard(stats = stats)
+        }
         Spacer(Modifier.height(24.dp))
         if (pendingDeletes > 0) {
             OutlinedButton(onClick = onFlush) {
@@ -217,10 +244,58 @@ private fun EmptyState(pendingDeletes: Int, onFlush: () -> Unit, onReload: () ->
 }
 
 @Composable
+private fun SessionStatsCard(stats: SessionStats) {
+    Surface(
+        modifier = Modifier
+            .widthIn(max = 420.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Text(
+                text = stringResource(R.string.empty_state_summary),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                StatCell(stringResource(R.string.stats_deleted), stats.deleted, Color(0xFFEF4444))
+                StatCell(stringResource(R.string.stats_kept), stats.kept, Color(0xFF22C55E))
+                StatCell(stringResource(R.string.stats_favorited), stats.favorited, Color(0xFFEAB308))
+                StatCell(stringResource(R.string.stats_moved), stats.moved, Color(0xFF3B82F6))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatCell(label: String, count: Int, accent: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = accent,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun CardStack(
     state: SwipeUiState,
     onSwiped: (SwipeDirection) -> Unit,
     onFlushQueue: () -> Unit,
+    onPreview: (Photo) -> Unit,
 ) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val current = state.currentPhoto ?: return
@@ -230,41 +305,51 @@ private fun CardStack(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .onSizeChanged { size = it },
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
         ) {
-            if (state.stackDepth >= 2) {
-                state.nextNextPhoto?.let {
-                    PhotoCard(
-                        photo = it,
-                        showMetadata = false,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 28.dp, start = 28.dp, end = 28.dp, bottom = 4.dp)
-                            .graphicsLayer { alpha = 0.35f },
-                    )
+            // Cap card width on tablets / landscape so the deck never feels stretched.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 560.dp)
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .onSizeChanged { size = it },
+            ) {
+                if (state.stackDepth >= 2) {
+                    state.nextNextPhoto?.let {
+                        PhotoCard(
+                            photo = it,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 28.dp, start = 28.dp, end = 28.dp, bottom = 4.dp)
+                                .graphicsLayer { alpha = 0.35f },
+                            showMetadata = false,
+                        )
+                    }
                 }
-            }
-            if (state.stackDepth >= 1) {
-                state.nextPhoto?.let {
-                    PhotoCard(
-                        photo = it,
-                        showMetadata = false,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
-                            .graphicsLayer { alpha = 0.75f },
-                    )
+                if (state.stackDepth >= 1) {
+                    state.nextPhoto?.let {
+                        PhotoCard(
+                            photo = it,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
+                                .graphicsLayer { alpha = 0.75f },
+                            showMetadata = false,
+                        )
+                    }
                 }
+                DraggableTopCard(
+                    photo = current,
+                    size = size,
+                    showMetadata = state.showMetadata,
+                    dragThresholdDp = state.dragThresholdDp,
+                    reduceMotion = state.reduceMotion,
+                    onSwiped = onSwiped,
+                    onLongPress = { onPreview(current) },
+                )
             }
-            DraggableTopCard(
-                photo = current,
-                size = size,
-                showMetadata = state.showMetadata,
-                dragThresholdDp = state.dragThresholdDp,
-                onSwiped = onSwiped,
-            )
         }
         FooterHints(state.showHints)
     }
@@ -419,7 +504,9 @@ private fun DraggableTopCard(
     size: IntSize,
     showMetadata: Boolean,
     dragThresholdDp: Int,
+    reduceMotion: Boolean,
     onSwiped: (SwipeDirection) -> Unit,
+    onLongPress: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember(photo.id) { Animatable(0f) }
@@ -430,13 +517,32 @@ private fun DraggableTopCard(
     val width = size.width.takeIf { it > 0 } ?: 1
     val height = size.height.takeIf { it > 0 } ?: 1
 
+    val returnSpec = if (reduceMotion) {
+        tween<Float>(durationMillis = 0)
+    } else {
+        spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        )
+    }
+    val exitSpec = if (reduceMotion) {
+        tween<Float>(durationMillis = 100, easing = FastOutSlowInEasing)
+    } else {
+        tween<Float>(durationMillis = 260, easing = FastOutSlowInEasing)
+    }
+    val photoCardA11y = stringResource(R.string.photo_card_a11y)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .semantics { contentDescription = photoCardA11y }
             .graphicsLayer {
                 translationX = offsetX.value
                 translationY = offsetY.value
                 rotationZ = (offsetX.value / width.toFloat()) * 12f
+            }
+            .pointerInput(photo.id) {
+                detectTapGestures(onLongPress = { onLongPress() })
             }
             .pointerInput(photo.id) {
                 detectDragGestures(
@@ -451,24 +557,8 @@ private fun DraggableTopCard(
                             else -> if (dy > 0) SwipeDirection.Down else SwipeDirection.Up
                         }
                         if (direction == null) {
-                            scope.launch {
-                                offsetX.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow,
-                                    ),
-                                )
-                            }
-                            scope.launch {
-                                offsetY.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow,
-                                    ),
-                                )
-                            }
+                            scope.launch { offsetX.animateTo(0f, returnSpec) }
+                            scope.launch { offsetY.animateTo(0f, returnSpec) }
                         } else {
                             val targetX = when (direction) {
                                 SwipeDirection.Right -> width * 1.4f
@@ -480,33 +570,16 @@ private fun DraggableTopCard(
                                 SwipeDirection.Down -> height * 1.4f
                                 SwipeDirection.Left, SwipeDirection.Right -> 0f
                             }
-                            val exit = tween<Float>(durationMillis = 260, easing = FastOutSlowInEasing)
-                            scope.launch { offsetX.animateTo(targetX, exit) }
+                            scope.launch { offsetX.animateTo(targetX, exitSpec) }
                             scope.launch {
-                                offsetY.animateTo(targetY, exit)
+                                offsetY.animateTo(targetY, exitSpec)
                                 onSwiped(direction)
                             }
                         }
                     },
                     onDragCancel = {
-                        scope.launch {
-                            offsetX.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow,
-                                ),
-                            )
-                        }
-                        scope.launch {
-                            offsetY.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow,
-                                ),
-                            )
-                        }
+                        scope.launch { offsetX.animateTo(0f, returnSpec) }
+                        scope.launch { offsetY.animateTo(0f, returnSpec) }
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
@@ -516,11 +589,83 @@ private fun DraggableTopCard(
                 )
             },
     ) {
-        PhotoCard(photo = photo, showMetadata = showMetadata, modifier = Modifier.fillMaxSize())
+        PhotoCard(photo = photo, modifier = Modifier.fillMaxSize(), showMetadata = showMetadata)
         DirectionOverlay(
             offset = Offset(offsetX.value, offsetY.value),
             threshold = thresholdPx,
         )
+    }
+}
+
+@Composable
+private fun FullScreenPreview(photo: Photo, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(photo.uri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = photo.displayName,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.systemBars)
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.preview_close),
+                    tint = Color.White,
+                )
+            }
+            Surface(
+                color = Color.Black.copy(alpha = 0.45f),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.systemBars),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp)) {
+                    Text(
+                        text = photo.displayName,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                    val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
+                        .format(java.util.Date(photo.dateTakenMillis))
+                    val sizeLabel = Formatter.formatShortFileSize(context, photo.sizeBytes)
+                    Text(
+                        text = "$date \u00B7 $sizeLabel",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
     }
 }
 

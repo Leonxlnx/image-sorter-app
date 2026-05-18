@@ -2,6 +2,33 @@
 
 All notable changes to PhotoSwipe are documented here. This project follows [Semantic Versioning](https://semver.org/) loosely — minor version bumps for new features, patch bumps for fixes, and a major bump only on breaking UX changes.
 
+## [1.3.0] – Launch pass
+
+### Added
+
+- **Full-screen preview**: long-press any card to see the photo full-size before deciding. Tap anywhere or press back to dismiss.
+- **Session statistics**: when the queue is empty, the screen shows how many photos you deleted, kept, favorited and sorted in that session.
+- **Reduce motion** accessibility toggle under Settings → Behavior. Replaces the spring animations with instant transitions for motion-sensitive users.
+- **F-Droid metadata stub** under `fastlane/metadata/android/en-US/` (title, short / full description, changelog) so the app is ready for catalogue submission.
+- **PRIVACY.md** documenting the no-data-leaves-the-device policy. Linked from the README with a privacy badge.
+- **Data extraction + full backup rules** (`res/xml/data_extraction_rules.xml`, `res/xml/backup_rules.xml`): cloud backup and device transfer now preserve your settings and folder list and explicitly drop the per-session reviewed photo IDs.
+- **Predictive back gesture** support via `android:enableOnBackInvokedCallback="true"` (Android 13+).
+- **TalkBack content description** for the photo card that announces the four swipe directions and the long-press preview affordance.
+
+### Changed
+
+- **Tablet / landscape**: the card deck is now capped at 560 dp wide and centered, instead of stretching across the full screen.
+- **Edge-to-edge polish**: the activity declares `configChanges` for orientation, screen-size, screen-layout, keyboard-hidden and UI mode so the swipe deck no longer recreates on rotation; insets continue to be handled via Scaffold.
+- **Animation specs in `DraggableTopCard`** factored out so reduce-motion users get tween 0 ms / 100 ms instead of the default spring physics.
+- Removed the redundant `android:label` on the launcher activity (uses the application label).
+
+### Internal
+
+- Bumped `versionName` to `1.3.0`, `versionCode` to `5`.
+- Added `SessionStats` data class and `bumpStats` / `unBumpStats` helpers in `SwipeViewModel`.
+- Added `reduceMotion` to `SettingsRepository` (DataStore key `reduce_motion`).
+- Added new string resources: `empty_state_summary`, `stats_*`, `settings_reduce_motion*`, `photo_card_a11y`, `preview_close`.
+
 ## [1.2.1] – Quiet UX polish
 
 ### Changed
