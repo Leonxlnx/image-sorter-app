@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 11 and below (auto backup to Google Drive).
+    PhotoSwipe stores nothing sensitive: only user preferences and the list of
+    folders the user has created in-app. Caches and per-session reviewed state
+    are scoped out so a restore on a new device starts clean.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="."/>
+    <include domain="file" path="datastore/"/>
+    <exclude domain="file" path="datastore/reviewed.preferences_pb"/>
+</full-backup-content>

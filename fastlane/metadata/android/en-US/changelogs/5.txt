@@ -1,0 +1,9 @@
+v1.3.0 — launch polish
+• Edge-to-edge layout with proper status / nav bar inset handling.
+• Tablet & landscape: card deck capped at a comfortable width instead of stretching.
+• Predictive back gesture on Android 13+.
+• Backup rules: cloud restore now preserves your settings and folder list cleanly.
+• Long-press a card for a full-screen preview.
+• Session statistics on the empty state (deleted / kept / favorited / sorted).
+• New "Reduce motion" accessibility toggle.
+• Stronger TalkBack support on the card and the pending-delete pill.

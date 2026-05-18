@@ -27,12 +27,23 @@ import kotlinx.coroutines.launch
 
 enum class SwipeDirection { Left, Right, Up, Down }
 
+/** Counters for the current session. Reset whenever the queue reloads. */
+data class SessionStats(
+    val deleted: Int = 0,
+    val kept: Int = 0,
+    val favorited: Int = 0,
+    val moved: Int = 0,
+) {
+    val total: Int get() = deleted + kept + favorited + moved
+}
+
 data class SwipeUiState(
     val isLoading: Boolean = true,
     val queue: List<Photo> = emptyList(),
     val cursor: Int = 0,
     val showHints: Boolean = true,
     val showMetadata: Boolean = true,
+    val reduceMotion: Boolean = false,
     val undo: UndoToken? = null,
     val folders: List<SortFolder> = emptyList(),
     val pendingDeleteCount: Int = 0,
@@ -40,6 +51,7 @@ data class SwipeUiState(
     val dragThresholdDp: Int = 96,
     val stackDepth: Int = 2,
     val folderRoot: FolderRoot = FolderRoot.Pictures,
+    val stats: SessionStats = SessionStats(),
 ) {
     val isEmpty: Boolean get() = queue.isEmpty() || cursor >= queue.size
     val currentPhoto: Photo? get() = queue.getOrNull(cursor)
@@ -94,6 +106,9 @@ class SwipeViewModel(
         viewModelScope.launch {
             settingsRepo.folderRoot.collect { _state.value = _state.value.copy(folderRoot = it) }
         }
+        viewModelScope.launch {
+            settingsRepo.reduceMotion.collect { _state.value = _state.value.copy(reduceMotion = it) }
+        }
         viewModelScope.launch { reload() }
     }
 
@@ -115,6 +130,7 @@ class SwipeViewModel(
                 isLoading = false,
                 queue = photos,
                 cursor = 0,
+                stats = SessionStats(),
             )
         }
     }
@@ -209,6 +225,7 @@ class SwipeViewModel(
                     _state.value = _state.value.copy(
                         cursor = _state.value.cursor + 1,
                         undo = result.undo,
+                        stats = bumpStats(_state.value.stats, action),
                     )
                 }
                 is SortResult.CopiedPendingDelete -> {
@@ -218,6 +235,7 @@ class SwipeViewModel(
                         cursor = _state.value.cursor + 1,
                         undo = result.undo,
                         pendingDeleteCount = newCount,
+                        stats = bumpStats(_state.value.stats, action),
                     )
                     // Auto-flush whenever we hit the batch threshold.
                     if (newCount >= _state.value.batchSize) flushPendingDeletes()
@@ -228,6 +246,13 @@ class SwipeViewModel(
                 is SortResult.Failed -> _events.send(SwipeEvent.Error(result.message))
             }
         }
+    }
+
+    private fun bumpStats(stats: SessionStats, action: SortAction): SessionStats = when (action) {
+        is SortAction.Keep -> stats.copy(kept = stats.kept + 1)
+        is SortAction.EnqueueDelete -> stats.copy(deleted = stats.deleted + 1)
+        is SortAction.CopyTo -> stats.copy(favorited = stats.favorited + 1)
+        is SortAction.MoveTo -> stats.copy(moved = stats.moved + 1)
     }
 
     fun consumeUndo() {
@@ -248,8 +273,16 @@ class SwipeViewModel(
                 cursor = insertAt,
                 undo = null,
                 pendingDeleteCount = sortActions.pendingCount,
+                stats = unBumpStats(_state.value.stats, pending.action),
             )
         }
+    }
+
+    private fun unBumpStats(stats: SessionStats, action: SortAction): SessionStats = when (action) {
+        is SortAction.Keep -> stats.copy(kept = (stats.kept - 1).coerceAtLeast(0))
+        is SortAction.EnqueueDelete -> stats.copy(deleted = (stats.deleted - 1).coerceAtLeast(0))
+        is SortAction.CopyTo -> stats.copy(favorited = (stats.favorited - 1).coerceAtLeast(0))
+        is SortAction.MoveTo -> stats.copy(moved = (stats.moved - 1).coerceAtLeast(0))
     }
 
     fun dismissUndo() {

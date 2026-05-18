@@ -1,0 +1,20 @@
+PhotoSwipe turns the chore of cleaning up your photo library into a calm, satisfying gesture loop.
+
+Swipe a card four ways:
+• Left  → queue for delete (one Android delete prompt per batch, not per photo)
+• Right → keep / mark reviewed
+• Up    → copy into your in-app Favorites folder
+• Down  → pick any folder you created in the app
+
+PhotoSwipe creates real gallery folders under Pictures/PhotoSwipe/ or DCIM/PhotoSwipe/, so the photos you sort show up in every other gallery app on your phone — no proprietary library, no lock-in.
+
+Highlights:
+• Batched deletes — one system dialog every N swipes instead of one per photo.
+• Manage your destination folders from inside the app; no SAF picker required.
+• Quiet UX: a single transient Undo pill, a compact pending-delete chip, spring-physics card animations.
+• Long-press any card for a full-screen preview before you decide.
+• Session statistics on the empty state so you can see what you did.
+• Granular settings: sort order, date range, drag sensitivity, card stack depth, batch size, haptics, hints, metadata overlay, Reduce motion accessibility toggle, folder root (Pictures or DCIM), Material You dynamic color, light/dark/system theme.
+• Edge-to-edge layout with predictive back gesture (Android 13+) and a tablet-friendly width cap.
+
+PhotoSwipe is fully open source under the MIT license. It does not collect data, does not include trackers, and does not require internet access. Photos and settings stay on your device.

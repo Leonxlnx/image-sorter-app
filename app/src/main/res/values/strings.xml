@@ -21,6 +21,11 @@
     <string name="swipe_down_hint">Sort to…</string>
     <string name="empty_state_title">All caught up</string>
     <string name="empty_state_subtitle">No more photos match the current filter.</string>
+    <string name="empty_state_summary">This session</string>
+    <string name="stats_deleted">Deleted</string>
+    <string name="stats_kept">Kept</string>
+    <string name="stats_favorited">Favorites</string>
+    <string name="stats_moved">Sorted</string>
     <string name="undo">Undo</string>
     <string name="pick_folder_title">Move to which folder?</string>
     <string name="pick_folder_subtitle">Pick a destination. You can add new folders from the Folders tab.</string>
@@ -30,6 +35,8 @@
     <string name="move_here">Move here</string>
     <string name="flush_pending">Confirm delete (%1$d)</string>
     <string name="pending_delete_a11y">%1$d photos queued for delete. Tap to confirm.</string>
+    <string name="photo_card_a11y">Photo card. Drag left to delete, right to keep, up to favorite, down to sort. Long-press to preview.</string>
+    <string name="preview_close">Close preview</string>
 
     <!-- Folders -->
     <string name="folders_title">Folders</string>
@@ -80,6 +87,8 @@
     <string name="settings_show_hints_subtitle">Show the four small labels under the active card.</string>
     <string name="settings_show_metadata">Photo metadata overlay</string>
     <string name="settings_show_metadata_subtitle">Display file name, date and size at the bottom of each card.</string>
+    <string name="settings_reduce_motion">Reduce motion</string>
+    <string name="settings_reduce_motion_subtitle">Replace spring physics with instant transitions. Good for motion sensitivity.</string>
 
     <string name="settings_storage_header">Storage</string>
     <string name="settings_folder_root">Folder root</string>
