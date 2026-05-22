@@ -79,15 +79,18 @@ Screenshots will be added as part of an upcoming release. In the meantime, the i
 
 ## Install
 
-F-Droid metadata is included under [`fastlane/metadata/android/en-US/`](fastlane/metadata/android/en-US/) so PhotoSwipe is ready for submission to the F-Droid catalogue.
+Grab the latest pre-built APK from the [**Releases**](https://github.com/Leonxlnx/image-sorter-app/releases/latest) page:
 
-Pre-built APKs are attached to each PR in the [Releases](https://github.com/Leonxlnx/image-sorter-app/releases) section once the corresponding pull request is merged. **For sideloading, always prefer the `release` APK** (`com.leonxlnx.imagesorter`, signed with the repo's stable `distribution` keystore) — it is built with APK signature schemes v1 + v2 + v3 simultaneously, so it installs cleanly on Samsung, OnePlus, Xiaomi and other vendor builds that still require JAR (v1) signing.
+- **[`PhotoSwipe-v1.3.1-release.apk`](https://github.com/Leonxlnx/image-sorter-app/releases/download/v1.3.1/PhotoSwipe-v1.3.1-release.apk)** — recommended for sideloading. Package `com.leonxlnx.imagesorter`, signed with the repo's stable `distribution` keystore using APK Signature Schemes v1 + v2 + v3 simultaneously, so it installs cleanly on Samsung, OnePlus, Xiaomi and other vendor builds that still require JAR (v1) signing.
+- **[`PhotoSwipe-v1.3.1-debug.apk`](https://github.com/Leonxlnx/image-sorter-app/releases/download/v1.3.1/PhotoSwipe-v1.3.1-debug.apk)** — debug variant (`com.leonxlnx.imagesorter.debug`) for development.
+
+F-Droid metadata is included under [`fastlane/metadata/android/en-US/`](fastlane/metadata/android/en-US/) so PhotoSwipe is ready for submission to the F-Droid catalogue.
 
 > **Samsung note:** If installation fails with "Package appears to be invalid" or "App not installed", check **Settings → Security and Privacy → Auto Blocker** and disable it. Samsung's Auto Blocker is enabled by default on One UI 6+ and blocks every sideloaded APK regardless of signature.
 
 To sideload:
 
-1. Download the APK to your phone.
+1. Download the APK to your phone from the link above.
 2. Tap it, allow "Install unknown apps" for your browser/file manager if prompted.
 3. On first launch, grant photo access (`READ_MEDIA_IMAGES`, plus `READ_MEDIA_VIDEO` if you opted into videos).
 
