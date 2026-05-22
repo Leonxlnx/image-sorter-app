@@ -11,4 +11,6 @@ captures/
 *.aab
 *.keystore
 *.jks
+# Distribution keystore is intentionally committed — see app/build.gradle.kts.
+!app/photoswipe-dev.jks
 !gradle/wrapper/gradle-wrapper.jar
