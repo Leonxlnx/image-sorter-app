@@ -2,6 +2,23 @@
 
 All notable changes to PhotoSwipe are documented here. This project follows [Semantic Versioning](https://semver.org/) loosely — minor version bumps for new features, patch bumps for fixes, and a major bump only on breaking UX changes.
 
+## [1.3.1] – Universal install fix
+
+### Fixed
+
+- **Installation failure on Samsung and other strict-vendor Android devices** ("Package appears to be invalid"). The previous AGP debug-signing default produced an APK signed only with APK Signature Scheme v2, missing the `META-INF/MANIFEST.MF`, `META-INF/CERT.SF` and `META-INF/CERT.RSA` JAR (v1) signing entries that some vendors and older Androids still validate before installation.
+
+### Added
+
+- **`distribution` signing config** in `app/build.gradle.kts` backed by a repo-checked-in keystore (`app/photoswipe-dev.jks`) so every machine that builds PhotoSwipe produces an APK with the same signature. Lets users upgrade between debug builds across sessions without uninstalling.
+- **Real release build type** (`com.leonxlnx.imagesorter`, no `.debug` suffix) signed with the distribution config, suitable for sideloading and F-Droid submission.
+- Forced `enableV1Signing = true`, `enableV2Signing = true`, `enableV3Signing = true` on both the debug and distribution signing configs — APKs now carry JAR + v2 + v3 signatures simultaneously.
+
+### Internal
+
+- Bumped `versionName` to `1.3.1`, `versionCode` to `6`.
+- `.gitignore` now whitelists `app/photoswipe-dev.jks` while continuing to exclude all other `*.jks` / `*.keystore` files.
+
 ## [1.3.0] – Launch pass
 
 ### Added

@@ -81,7 +81,11 @@ Screenshots will be added as part of an upcoming release. In the meantime, the i
 
 F-Droid metadata is included under [`fastlane/metadata/android/en-US/`](fastlane/metadata/android/en-US/) so PhotoSwipe is ready for submission to the F-Droid catalogue.
 
-Pre-built debug APKs are attached to each PR in the [Releases](https://github.com/Leonxlnx/image-sorter-app/releases) section once the corresponding pull request is merged. To sideload:
+Pre-built APKs are attached to each PR in the [Releases](https://github.com/Leonxlnx/image-sorter-app/releases) section once the corresponding pull request is merged. **For sideloading, always prefer the `release` APK** (`com.leonxlnx.imagesorter`, signed with the repo's stable `distribution` keystore) — it is built with APK signature schemes v1 + v2 + v3 simultaneously, so it installs cleanly on Samsung, OnePlus, Xiaomi and other vendor builds that still require JAR (v1) signing.
+
+> **Samsung note:** If installation fails with "Package appears to be invalid" or "App not installed", check **Settings → Security and Privacy → Auto Blocker** and disable it. Samsung's Auto Blocker is enabled by default on One UI 6+ and blocks every sideloaded APK regardless of signature.
+
+To sideload:
 
 1. Download the APK to your phone.
 2. Tap it, allow "Install unknown apps" for your browser/file manager if prompted.
