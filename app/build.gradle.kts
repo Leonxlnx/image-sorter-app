@@ -12,9 +12,32 @@ android {
         applicationId = "com.leonxlnx.imagesorter"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.3.0"
+        versionCode = 6
+        versionName = "1.3.1"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    signingConfigs {
+        // Stable keystore checked into the repo so every build of this open-source
+        // project signs the same way, regardless of which machine builds it. This is
+        // NOT a Play-Store release key; if you want to ship to Play, generate your
+        // own key and override these values via ~/.gradle/gradle.properties or env.
+        create("distribution") {
+            storeFile = file("photoswipe-dev.jks")
+            storePassword = "photoswipe"
+            keyAlias = "photoswipe"
+            keyPassword = "photoswipe"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+        // Force v1+v2+v3 on the default debug signing as well so sideloading the
+        // debug APK works on Samsung / older devices that require JAR (v1) signing.
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
     }
 
     buildTypes {
@@ -24,6 +47,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sign release builds with the distribution keystore so installation
+            // does not collide with the per-machine debug keystore.
+            signingConfig = signingConfigs.getByName("distribution")
         }
         debug {
             isMinifyEnabled = false
